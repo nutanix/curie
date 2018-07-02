@@ -1,6 +1,6 @@
-include:
-  - '.gitlab-ci-integration-master.yml'
-  - '.gitlab-ci-integration-branches.yml'
+#include:
+#  - '.gitlab-ci-integration-master.yml'
+#  - '.gitlab-ci-integration-branches.yml'
 
 stages:
   - environment_build
