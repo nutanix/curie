@@ -1,0 +1,124 @@
+name: sequential_node_failure
+
+display_name: "Sequential Node Failure"
+
+summary:
+  VM availability and data loss during sequential node failure
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to illustrate the effects of sequential node failures
+  on the availability of data in a cluster. At any given point in time only a
+  single failure is present across the entire cluster.
+  <br /><br />
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB VM template.</li>
+    <li>Clone one OLTP DB VM per node in the cluster.</li>
+    <li>Pre-fill each OLTP DB VM with data.</li>
+    <li>Warm up the OLTP DB VMs for 1 hour.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload.</li>
+    <li>Wait 1 hour with the workload running.</li>
+    <li>Fail the first node by powering off through out-of-band management.</li>
+    <li>Power the node back on and wait for the node to be ready.</li>
+    <li>Wait for 60 seconds.</li>
+    <li>Fail the second node.</li>
+    <li>Wait for 30 minutes.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs on every node</li>
+    <li>RAM: 4 GB on every node</li>
+    <li>Cluster Storage: 116GB per node</li>
+    <li>IP Addresses: 1 per node</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+  <br /><br />
+  <span style="color: #FF0000">
+    This test performs hardware power operations on the target's nodes, which
+     may result in unavailability or permanent damage to non-Nutanix targets.
+  </span>
+
+tags:
+  - availability
+  - data loss
+  - performance
+
+estimated_runtime: 23400
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      count_per_node: 1
+
+workloads:
+  - OLTP Warmup:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+
+results:
+  - OLTP Activity:
+      workload_name: OLTP
+      result_type: active
+  - OLTP I/O Errors:
+      workload_name: OLTP
+      result_type: errors
+      report_group: availability
+      report_metrics:
+        - AnyFail
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - workload.PrefillRun:
+      workload_name: OLTP
+  - workload.Start:
+      workload_name: OLTP Warmup
+      runtime_secs: 3600
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 10800
+      stagger_secs: 900
+      async: True
+  - test.Wait:
+      duration_secs: 3600
+  - nodes.PowerOff:
+      nodes: 0
+  - nodes.PowerOn:
+      nodes: 0
+  - test.Wait:
+      duration_secs: 60
+  - nodes.PowerOff:
+      nodes: 1
+  - test.Wait:
+      duration_secs: 1800
+  - workload.Stop:
+      workload_name: OLTP
+
+teardown:
+  - cluster.CleanUp: {}

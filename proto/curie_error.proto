@@ -1,0 +1,49 @@
+/*
+ * Copyright (c) 2015 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+message CurieError {
+  enum Type {
+    // No error.
+    kNoError = 0;
+    // Caller should retry the request later.
+    kRetry = 1;
+    // The operation timed out.
+    kTimeout = 2;
+    // Invalid parameter (e.g., in an API request).
+    kInvalidParameter = 3;
+    // Management server API (e.g., vSphere API for vCenter) authentication
+    // error. This error indicates a misconfiguration of the corresponding
+    // cluster's settings in curie.
+    kManagementServerApiAuthenticationError = 4;
+    // Management server API errors excluding authentication.
+    kManagementServerApiError = 5;
+    // Cluster API (e.g., Prism REST API for a Nutanix cluster) authentication
+    // error. This error indicates a misconfiguration of the corresponding
+    // cluster's settings in curie.
+    kClusterApiAuthenticationError = 6;
+    // Cluster API errors excluding authentication.
+    kClusterApiError = 7;
+    // Internal error in the server not covered by any of the above errors.
+    kInternalError = 8;
+    // Out-of-band management authentication error.
+    kOobAuthenticationError = 9;
+    // Curie encryption key has not been set.
+    kAuthenticationError = 10;
+    // Total number of error codes above.
+    kNumErrors = 11;
+  }
+}
+
+message ErrorRet {
+  // List of error codes for the errors that occurred.
+  repeated CurieError.Type error_codes = 1;
+
+  // List of error messages for the errors that occured. Should be the same
+  // length as 'error_codes'.
+  repeated string error_msgs = 2;
+}

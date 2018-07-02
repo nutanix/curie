@@ -1,0 +1,117 @@
+name: rolling_upgrade
+
+display_name: "Rolling Upgrade"
+
+summary:
+  VM performance and availability during sequential node upgrade
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test demonstrates that critical OLTP DB workloads can continue running
+  without issues while the hypervisor is upgraded. In this scenario,
+  a hypervisor upgrade is simulated by rebooting each node in sequence.
+  <br /><br />
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB VM template.</li>
+    <li>Clone one OLTP DB VM per node in the cluster.</li>
+    <li>Pre-fill each OLTP DB VM with data.</li>
+    <li>Warm up the DBs for 1 hour.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload on each VM.</li>
+    <li>Wait 5 minutes.</li>
+    <li>Migrate the VM on the first node to another node.</li>
+    <li>Gracefully reboot the hypervisor node.</li>
+    <li>When the node comes back, migrate the VM back to the node.</li>
+    <li>Repeat 3 through 5 until all nodes have been rebooted.</li>
+    <li>Wait for 10 minutes.</li>
+    <li>Stop the OLTP workloads.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs on every node</li>
+    <li>RAM: 4 GB on every node</li>
+    <li>Cluster Storage: 116GB per node</li>
+    <li>IP Addresses: 1 per node</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+  <br /><br />
+  <span style="color: #FF0000">
+    This test performs hardware power operations on the target's nodes, which
+    may result in unavailability or permanent damage to non-Nutanix targets.
+  </span>
+
+tags:
+  - availability
+  - data loss
+  - performance
+
+estimated_runtime: 36000
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      count_per_node: 1
+
+workloads:
+  - OLTP Warmup:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+
+results:
+  - OLTP Activity:
+      workload_name: OLTP
+      result_type: active
+  - OLTP I/O Errors:
+      workload_name: OLTP
+      result_type: errors
+      report_group: availability
+      report_metrics:
+        - AnyFail
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - workload.PrefillRun:
+      workload_name: OLTP
+  - workload.Start:
+      workload_name: OLTP Warmup
+      runtime_secs: 3600
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 18000
+      async: True
+  - test.Wait:
+      duration_secs: 300
+  - meta.RollingUpgrade: {}
+  - test.Wait:
+      duration_secs: 600
+  - workload.Stop:
+      workload_name: OLTP
+
+teardown:
+  - cluster.CleanUp: {}

@@ -1,0 +1,102 @@
+<pre>
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All rights reserved.
+Vdbench distribution: vdbench50403
+
+09:44:12.159 input argument scanned: '-f/home/nutanix/vdi.vdb'
+09:44:12.160 input argument scanned: '-o/home/nutanix/test_output'
+09:44:12.160 input argument scanned: '-e120'
+09:44:12.162 input argument scanned: '-i5'
+09:44:12.162 java.vendor                   Oracle Corporation
+09:44:12.162 java.home                     /usr/lib/jvm/java-1.7.0-openjdk-1.7.0.91.x86_64/jre
+09:44:12.162 java.vm.specification.version 1.7
+09:44:12.162 java.vm.version               24.91-b01
+09:44:12.162 java.vm.vendor                Oracle Corporation
+09:44:12.162 java.specification.version    1.7
+09:44:12.162 java.class.version            51.0
+09:44:12.162 user.name                     root
+09:44:12.162 user.dir                      /root
+09:44:12.163 java.class.path               /home/nutanix/vdbench/:/home/nutanix/vdbench/classes:/home/nutanix/vdbench/vdbench.jar
+09:44:12.163 os.name                       Linux
+09:44:12.163 os.arch                       amd64
+09:44:12.163 os.version                    2.6.32-504.el6.x86_64
+09:44:12.163 sun.arch.data.model           64
+09:44:12.239
+09:44:12.239 Adjusted default JVM count for host=localhost from jvms=1 to jvms=2 because of iorate=max and a total of 2 sds.
+09:44:12.240
+09:44:12.292 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-10-151210-09.44.12.102 -l localhost-0 -p 5570
+09:44:12.312 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-11-151210-09.44.12.102 -l localhost-1 -p 5570
+09:44:12.703 Slave localhost-1 connected
+09:44:12.704 Slave localhost-0 connected
+09:44:12.717 All slaves are now connected
+09:44:12.817 sd=sd1,lun=/dev/sdb lun size: 17179869184 bytes; 16.0000 GB (1024**3); 17.1799 GB (1000**3)
+09:44:12.817 sd=sd2,lun=/dev/sdb lun size: 17179869184 bytes; 16.0000 GB (1024**3); 17.1799 GB (1000**3)
+
+Link to Run Definitions:         <A HREF="#_1260005516">run1 For loops: None</A>
+
+09:44:12.920 Waiting for synchronization of all slaves
+09:44:13.621 Synchronization of all slaves complete
+09:44:14.002 Starting RD=run1; I/O rate: Controlled MAX; elapsed=120; For loops: None
+
+<a name="_1260005516"></a><i><b>09:44:14.003 Starting RD=run1; I/O rate: Controlled MAX; elapsed=120; For loops: None</b></i>
+
+
+Dec 10, 2015  interval        i/o   MB/sec   bytes   read     resp     read    write     resp     resp queue  cpu%  cpu%
+                             rate  1024**2     i/o    pct     time     resp     resp      max   stddev depth sys+u   sys
+09:44:19.091         1      22.00     0.49   23161  40.91    1.661    1.187    1.989   47.144    4.384   0.0  10.0   2.0
+09:44:24.011         2      18.20     0.37   21425  50.55    1.208    1.155    1.263    3.021    0.334   0.0   1.9   0.5
+09:44:29.048         3      19.20     0.40   21760  47.92    1.181    1.071    1.281    3.064    0.280   0.0   1.4   0.5
+09:44:34.048         4      20.00     0.39   20480  55.00    1.119    1.051    1.202    1.937    0.210   0.0   1.3   0.7
+09:44:39.049         5      22.80     0.47   21773  49.12    1.343    1.353    1.332   13.240    1.308   0.0   0.9   0.4
+09:44:44.049         6      20.00     0.45   23674  46.00    1.249    1.179    1.308    5.369    0.499   0.0   0.9   0.4
+09:44:49.048         7      20.40     0.45   23130  46.08    1.096    1.006    1.173    1.759    0.200   0.0   1.3   0.5
+09:44:54.050         8      20.20     0.43   22061  47.52    1.264    1.083    1.428    7.417    0.834   0.0   1.0   0.5
+09:44:59.050         9      20.20     0.40   20601  52.48    1.202    1.112    1.302    3.891    0.428   0.0   1.5   0.5
+09:45:04.049        10      18.20     0.33   18994  58.24    1.150    1.067    1.265    2.721    0.300   0.0   1.2   0.5
+09:45:09.047        11      22.80     0.41   18755  60.53    1.210    1.156    1.294    3.122    0.419   0.0   1.1   0.4
+09:45:14.047        12      20.00     0.42   22200  44.00    1.165    1.059    1.248    4.808    0.526   0.0   1.2   0.5
+09:45:19.048        13      21.40     0.43   20824  50.47    1.142    1.121    1.163    3.126    0.332   0.0   1.0   0.5
+09:45:24.047        14      24.60     0.47   19980  54.47    1.206    1.221    1.189    3.430    0.460   0.0   0.9   0.5
+09:45:29.049        15      18.20     0.36   20885  49.45    1.226    1.247    1.206    2.896    0.408   0.0   1.4   0.6
+09:45:34.056        16      16.00     0.30   19865  60.00    1.206    1.151    1.288    4.592    0.491   0.0   1.1   0.5
+09:45:39.049        17      18.40     0.39   22082  48.91    1.083    0.937    1.224    2.588    0.295   0.0   1.1   0.4
+09:45:44.046        18      18.80     0.39   21787  51.06    1.273    1.220    1.327    3.796    0.402   0.0   1.0   0.5
+09:45:49.046        19      18.80     0.42   23355  43.62    1.242    1.176    1.292    3.421    0.342   0.0   0.7   0.4
+09:45:54.047        20      20.80     0.36   18116  63.46    1.278    1.264    1.303    9.612    0.999   0.0   0.9   0.5
+09:45:59.046        21      19.60     0.42   22486  44.90    1.199    0.973    1.383    5.225    0.507   0.0   0.8   0.4
+09:46:04.046        22      18.20     0.36   20615  52.75    1.188    1.083    1.305    2.820    0.238   0.0   1.1   0.6
+09:46:09.045        23      21.60     0.43   20707  52.78    1.133    1.021    1.258    3.535    0.326   0.0   1.0   0.5
+09:46:14.050        24      16.60     0.31   19739  54.22    1.432    1.373    1.502   11.967    1.512   0.0   0.7   0.3
+09:46:14.127  avg_2-24      19.78     0.40   21090  51.47    1.208    1.138    1.282   13.240    0.607   0.0   1.1   0.5
+09:46:14.137 *
+09:46:14.137 **********************************************************************************************
+09:46:14.137 * Observed Workload skew for wd=wd1 delta greater than 1% (51.47). See skew.html for details *
+09:46:14.137 **********************************************************************************************
+09:46:14.137 *
+09:46:14.137 *
+09:46:14.137 *************************************************************************************************************************************
+09:46:14.137 * Possible reasons for workload skew being out of sync:                                                                             *
+09:46:14.137 *                                                                                                                                   *
+09:46:14.137 * - Elapsed time too short.                                                                                                         *
+09:46:14.138 *   Each SD should have done at least 2000 i/o's. Adding 'warmup=nn' may help this.                                                 *
+09:46:14.138 *   For SD concatenation this is the ONLY acceptable reason. Contact me at the Oracle Vdbench Forum if the differences are too big. *
+09:46:14.138 *                                                                                                                                   *
+09:46:14.138 * - A mix of seekpct=seq and random workloads.                                                                                      *
+09:46:14.138 *   Sequential workloads may run on only ONE slave, but random workloads                                                            *
+09:46:14.138 *   may run on multiple slaves. Workload skew depends on ALL workloads                                                              *
+09:46:14.138 *   running on all slaves. Force slave count to just one. (hd=default,jvms=1)                                                       *
+09:46:14.138 *                                                                                                                                   *
+09:46:14.138 * - Not enough threads available to guarantee that all workloads can run                                                            *
+09:46:14.138 *   on all slaves.                                                                                                                  *
+09:46:14.138 *                                                                                                                                   *
+09:46:14.139 * - There may be more, can't think (of any) right now. :-)                                                                          *
+09:46:14.139 *                                                                                                                                   *
+09:46:14.139 * You may use 'abort_failed_skew=nn' for Vdbench to abort after skew failures. See documentation.                                   *
+09:46:14.139 *                                                                                                                                   *
+09:46:14.139 *************************************************************************************************************************************
+09:46:14.139 *
+09:46:14.462 Flushing all reports
+09:46:14.464 Java Heap in MB. max:  455.000; current:   78.500; used:   22.316; free:   56.184
+09:46:14.506 Ending Reporter
+09:46:14.988 Vdbench execution completed successfully. Output directory: /home/nutanix/test_output
+
+09:46:15.190 Java Heap in MB. max:  455.000; current:   78.500; used:   16.873; free:   61.627

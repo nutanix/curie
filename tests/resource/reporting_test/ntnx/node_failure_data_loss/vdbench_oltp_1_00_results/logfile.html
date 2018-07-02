@@ -1,0 +1,92 @@
+<pre>
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All rights reserved.
+Vdbench distribution: vdbench50403
+
+14:27:22.356 input argument scanned: '-f/home/nutanix/oltp.vdb'
+14:27:22.357 input argument scanned: '-o/home/nutanix/test_output'
+14:27:22.358 input argument scanned: '-e5580'
+14:27:22.358 input argument scanned: '-i1'
+14:27:22.358 java.vendor                   Oracle Corporation
+14:27:22.358 java.home                     /usr/lib/jvm/java-1.7.0-openjdk-1.7.0.91.x86_64/jre
+14:27:22.358 java.vm.specification.version 1.7
+14:27:22.358 java.vm.version               24.91-b01
+14:27:22.359 java.vm.vendor                Oracle Corporation
+14:27:22.359 java.specification.version    1.7
+14:27:22.359 java.class.version            51.0
+14:27:22.359 user.name                     root
+14:27:22.359 user.dir                      /root
+14:27:22.359 java.class.path               /home/nutanix/vdbench/:/home/nutanix/vdbench/classes:/home/nutanix/vdbench/vdbench.jar
+14:27:22.359 os.name                       Linux
+14:27:22.359 os.arch                       amd64
+14:27:22.359 os.version                    2.6.32-504.el6.x86_64
+14:27:22.359 sun.arch.data.model           64
+14:27:22.422
+14:27:22.422 Adjusted default JVM count for host=localhost from jvms=1 to jvms=6 because of iorate=max and a total of 6 sds.
+14:27:22.424
+14:27:22.472 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-10-151216-14.27.22.327 -l localhost-0 -p 5570
+14:27:22.492 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-11-151216-14.27.22.327 -l localhost-1 -p 5570
+14:27:22.512 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-12-151216-14.27.22.327 -l localhost-2 -p 5570
+14:27:22.533 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-13-151216-14.27.22.327 -l localhost-3 -p 5570
+14:27:22.560 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-14-151216-14.27.22.327 -l localhost-4 -p 5570
+14:27:22.584 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-15-151216-14.27.22.327 -l localhost-5 -p 5570
+14:27:22.841 Slave localhost-1 connected
+14:27:22.852 Slave localhost-0 connected
+14:27:22.880 Slave localhost-2 connected
+14:27:22.914 Slave localhost-3 connected
+14:27:23.008 Slave localhost-4 connected
+14:27:23.014 Slave localhost-5 connected
+14:27:23.037 All slaves are now connected
+14:27:23.137 sd=sd1,lun=/dev/sdb lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+14:27:23.138 sd=sd2,lun=/dev/sdc lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+14:27:23.138 sd=sd3,lun=/dev/sdd lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+14:27:23.138 sd=sd4,lun=/dev/sde lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+14:27:23.138 sd=sd5,lun=/dev/sdf lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+14:27:23.139 sd=sd6,lun=/dev/sdg lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+
+Link to Run Definitions:         <A HREF="#_67824172">run1 For loops: None</A>
+
+14:27:23.290 Waiting for synchronization of all slaves
+14:27:23.995 Synchronization of all slaves complete
+14:27:24.001 Starting RD=run1; I/O rate: Controlled MAX; elapsed=5580; For loops: None
+
+<a name="_67824172"></a><i><b>14:27:24.003 Starting RD=run1; I/O rate: Controlled MAX; elapsed=5580; For loops: None</b></i>
+
+
+Dec 16, 2015  interval        i/o   MB/sec   bytes   read     resp     read    write     resp     resp queue  cpu%  cpu%
+                             rate  1024**2     i/o    pct     time     resp     resp      max   stddev depth sys+u   sys
+14:27:25.150         1    3836.00    42.84   11709  47.42    1.319    1.595    1.070   29.802    1.499   5.1  52.9   6.6
+14:27:26.028         2    4079.00    45.04   11578  46.41    1.378    1.646    1.146   20.565    1.166   5.6  23.3   4.2
+14:27:27.069         3    4198.00    47.68   11909  47.95    1.272    1.405    1.149   18.862    1.004   5.3  14.6   3.8
+14:27:28.064         4    4218.00    47.58   11827  47.68    1.446    1.731    1.187   18.377    1.609   6.1  22.2   3.9
+14:27:29.059         5    4443.00    49.31   11638  47.15    1.259    1.382    1.149   17.334    0.867   5.6  15.4   3.6
+14:27:30.055         6    4147.00    45.52   11510  46.01    1.265    1.372    1.174   12.480    0.813   5.3  14.4   4.1
+14:27:31.059         7    4157.00    45.44   11461  48.33    1.367    1.608    1.142   17.866    1.426   5.7  14.4   3.8
+14:27:32.061         8    4218.00    47.32   11763  46.94    1.526    1.775    1.305   17.803    1.635   6.4  12.4   3.6
+14:27:33.060         9    4288.00    47.19   11539  47.76    1.301    1.430    1.184   17.895    1.166   5.6  13.4   3.9
+14:27:34.058        10    4180.00    47.00   11790  47.46    1.432    1.582    1.297   16.762    1.626   6.0  13.9   4.1
+14:27:35.057        11    4230.00    46.43   11509  47.85    1.252    1.343    1.168   12.678    0.938   5.3  13.8   4.6
+14:27:36.057        12    4159.00    45.95   11583  48.50    1.228    1.268    1.190   13.570    0.834   5.1  13.5   3.9
+14:27:37.058        13    4128.00    45.42   11537  47.60    1.293    1.367    1.225   20.112    1.300   5.3  14.0   4.4
+14:27:38.057        14    4208.00    47.05   11725  47.58    1.270    1.383    1.167   15.698    1.333   5.3  11.9   3.6
+14:27:39.057        15    4239.00    47.67   11792  47.51    1.236    1.228    1.243   21.974    1.284   5.3  14.3   3.8
+14:27:40.057        16    4191.00    46.50   11634  46.84    1.167    1.186    1.151   14.264    0.867   4.9  16.2   4.1
+14:27:41.054        17    4248.00    47.06   11616  48.05    1.207    1.264    1.153   16.789    1.039   5.1  10.6   3.6
+14:27:42.055        18    4217.00    46.42   11543  47.93    1.191    1.242    1.143   16.852    1.118   5.0  11.1   3.9
+14:27:43.054        19    4254.00    48.35   11918  47.84    1.129    1.138    1.120   11.875    0.860   4.8  11.4   4.1
+14:27:44.054        20    4157.00    46.00   11603  47.97    1.211    1.162    1.255   18.007    1.120   5.0  10.3   3.9
+14:27:45.054        21    4165.00    46.13   11614  48.74    1.348    1.477    1.226   18.205    1.456   5.7  10.3   3.9
+14:27:46.054        22    4312.00    48.78   11862  48.59    1.764    2.060    1.485   24.459    2.400   7.5  11.0   3.6
+14:27:47.055        23    4163.00    46.14   11621  46.58    1.178    1.206    1.154   11.129    1.019   4.9  11.3   4.1
+14:27:48.054        24    4123.00    45.24   11506  47.83    1.180    1.200    1.162   13.939    1.053   4.9  11.1   3.9
+14:27:49.054        25    4267.00    48.59   11941  47.72    1.077    1.028    1.122   11.604    0.810   4.6  11.4   3.6
+14:27:50.054        26    4287.00    47.65   11654  48.29    1.212    1.197    1.225   18.361    1.297   5.2  11.0   4.1
+14:27:51.053        27    4219.00    47.02   11687  47.81    1.145    1.095    1.192   16.014    0.970   4.8   9.1   3.1
+14:27:52.051        28    4304.00    47.88   11663  48.12    1.197    1.159    1.233   16.145    1.108   5.2   9.3   2.8
+14:27:53.054        29    4242.00    47.13   11650  47.45    1.127    1.076    1.174   14.757    0.898   4.8   9.1   3.1
+14:27:54.055        30    4263.00    46.73   11495  47.76    1.201    1.159    1.239   17.357    1.236   5.1   9.5   3.8
+15:41:02.042      4418    4246.00    46.55   11496  47.55    2.459    1.805    3.052   44.220    3.606  10.3   9.0   3.9
+15:41:03.043      4419    3856.00    43.11   11722  49.30    5.247    3.584    6.864   50.761    7.178  20.5   6.9   3.1
+15:41:04.043      4420    4662.00    52.64   11839  47.36    2.919    1.881    3.852   36.414    4.106  13.4   9.5   4.1
+15:41:05.043      4421    4176.00    46.78   11746  48.54    1.713    1.255    2.146   57.445    2.586   7.2  10.1   4.4
+15:41:06.043      4422    4227.00    48.23   11965  48.14    2.100    1.305    2.838   36.043    3.255   8.9  10.3   4.1
+15:41:07.042      4423    4049.00    44.97   11645  46.58    3.673    2.820    4.418   43.504    4.894  15.0   9.2   4.6

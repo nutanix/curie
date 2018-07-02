@@ -1,0 +1,303 @@
+.curie_integration_test_template_master: &curie_integration_test_master
+  image: $IMAGE_NAME
+  stage: integration_test
+  variables:
+    PS_SERVER_ADDRESS: gitlab-ee.rtp.nutanix.com-xray-hyperv_ps_server
+  services:
+    - name: gitlab-ee.rtp.nutanix.com:4567/xray/hyperv_ps_server:master-ci
+      alias: hyperv-ps-server
+  only:
+    - master@xray/charon
+  before_script:
+    - export GOLDIMAGEVERSION="2.4.0v2"
+    - export CURIE_GOLDIMAGE_HTTP_SERVER="http://filer.rtp.nutanix.com/scratch/charon/goldimages/${GOLDIMAGEVERSION}/"
+    - echo $CI_RUNNER_ID
+    - echo $CI_RUNNER_DESCRIPTION
+    - echo $CI_RUNNER_TAGS
+    - curl ${RUNNER_CONFIG_URL}${CI_RUNNER_DESCRIPTION}.json > /runner.json
+    - pip install --src curie -e .
+  script:
+    - coverage run tests/run_integration.py
+        --debug
+        --path "$CI_BUILD_NAME"
+        --cluster_config_path=/runner.json
+        --curie_vmdk_goldimages_dir=/goldimages
+  artifacts:
+    when: always
+    expire_in: 1 week
+    untracked: true
+    paths:
+    - .coverage*
+
+integration/test_scenario.py (Master):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+
+integration/test_cluster.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test_acropolis_cluster.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test_discovery_util.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test/steps/test_check.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test/steps/test_meta.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - ahv
+
+integration/test/steps/test_nodes.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - ahv
+
+integration/test/steps/test_test.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test/steps/test_vm_group.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test/steps/test_vm_group_big_boot.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test/steps/test_workload.py (Master, AHV):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - ahv
+
+integration/test_cluster.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test_vsphere_cluster.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test_vsphere_vcenter.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test_discovery_util.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test/steps/test_check.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test/steps/test_meta.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - esx
+
+integration/test/steps/test_nodes.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - esx
+
+integration/test/steps/test_test.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test/steps/test_vm_group.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test/steps/test_workload.py (Master, ESX):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - esx
+
+integration/test_cluster.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test_vmm_client.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test_discovery_util.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_check.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_meta.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_nodes.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_test.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_vm_group.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_vm_group_big_boot.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test/steps/test_workload.py (Master, Hyper-V / Nutanix):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/test_cluster.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test_vmm_client.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test_discovery_util.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test/steps/test_check.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test/steps/test_meta.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - s2d
+
+integration/test/steps/test_nodes.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - s2d
+
+integration/test/steps/test_test.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test/steps/test_vm_group.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test/steps/test_vm_group_big_boot.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/test/steps/test_workload.py (Master, Hyper-V / S2D):
+  <<: *curie_integration_test_master
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d

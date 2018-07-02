@@ -1,0 +1,15 @@
+[paths]
+source = curie
+
+[run]
+source = curie
+parallel = True
+branch = False
+concurrency = multiprocessing
+omit =
+  curie/*_pb2.py
+  curie/parsetab.py
+
+[report]
+ignore_errors = True
+show_missing = False

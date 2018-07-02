@@ -1,0 +1,158 @@
+/*
+ * Copyright (c) 2015 Nutanix Inc. All rights reserved.
+ *
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+import "curie_extensions.proto";
+
+option py_generic_services = true;
+
+//-----------------------------------------------------------------------------
+
+message CmdStatus {
+  enum Type {
+    // Non-terminal states.
+    kRunning = 0;
+    // Terminal states.
+    kSucceeded = 1;
+    kFailed = 2;
+    kStopped = 3;
+    kUnknown = 4;
+  }
+  // State of the command.
+  required Type state = 1;
+
+  // If the command is running, this is the PID of the curie_cmd_wrapper
+  // process that is wrapping execution of the command.
+  optional int32 pid = 2;
+
+  // If the command either succeeded or failed, this value indicates the exit
+  // status of the command. If the command is in a running state or unknown
+  // state (the remaining terminal state), we don't know the exit status of the
+  // command so this field will not be set in that case.
+  optional int32 exit_status = 3;
+
+  // The paths to local stdout and stderr files for the command output.
+  optional string stdout_path = 4;
+  optional string stderr_path = 5;
+}
+
+//-----------------------------------------------------------------------------
+
+message CmdExecuteArg {
+  // User that 'cmd' should run under.
+  optional string user = 1 [default = "nutanix"];
+
+  // Unique command ID for running 'cmd'.
+  required string cmd_id = 2;
+
+  // Command line for the command to run asynchronously.
+  required string cmd = 3;
+}
+
+message CmdExecuteRet {
+}
+
+message CmdStatusArg {
+  // Command ID of the command to obtain status on.
+  required string cmd_id = 1;
+
+  // If true, include stdout and stderr from the command in the RPC response if
+  // the command has completed.
+  optional bool include_output = 2 [default = false];
+}
+
+message CmdStatusRet {
+  // Status of the command.
+  required CmdStatus cmd_status = 1;
+
+  // stdout from running the command.
+  optional string stdout = 2;
+
+  // stderr from running the command.
+  optional string stderr = 3;
+}
+
+message CmdStopArg {
+  // Command ID of the command to stop.
+  required string cmd_id = 1;
+}
+
+message CmdStopRet {
+}
+
+message CmdRemoveArg {
+  // Command ID of the command to remove state for. The command must already
+  // have reached a terminal state in order to call this.
+  required string cmd_id = 1;
+}
+
+message CmdRemoveRet {
+}
+
+message CmdListArg {
+}
+
+message CmdListRet {
+  message CmdSummary {
+    // Command ID.
+    required string cmd_id = 1;
+
+    // Command line for the command.
+    required string cmd = 2;
+
+    // Command state.
+    required CmdStatus.Type state = 3;
+  }
+  repeated CmdSummary cmd_summary_list = 1;
+}
+
+message FileGetArg {
+  // Absolute path to the file whose contents we're fetching.
+  required string path = 1;
+
+  // Offset to start reading from the file.
+  optional int64 offset = 2 [default = 0];
+
+  // Number of bytes to read starting at 'offset'. If this is not set, we read
+  // all bytes from 'offset' to the end of the flie.
+  optional int64 length = 3;
+}
+
+message FileGetRet {
+  // Contents of the file specified by the request.
+  required bytes data = 1;
+}
+
+//-----------------------------------------------------------------------------
+
+service CurieAgentRpcSvc {
+  option (nutanix.curie.default_timeout_msecs) = 1000;
+  option (nutanix.curie.default_max_retries) = 20;
+
+  // Execute a command on the node where the agent is running.
+  rpc CmdExecute(CmdExecuteArg) returns(CmdExecuteRet);
+
+  // Return the status of a command.
+  rpc CmdStatus(CmdStatusArg) returns(CmdStatusRet);
+
+  // Stop a command.
+  rpc CmdStop(CmdStopArg) returns(CmdStopRet);
+
+  // Remove a command. A remove implies a stop if the command is still running.
+  rpc CmdRemove(CmdRemoveArg) returns(CmdRemoveRet);
+
+  // List all commands known to the agent. Note that this includes commands in
+  // all states (e.g., running, succeeded, failed, etc.).
+  rpc CmdList(CmdListArg) returns(CmdListRet);
+
+  // Return a byte range (default is the entire file) for a file where the
+  // agent is running.
+  rpc FileGet(FileGetArg) returns(FileGetRet);
+}
+
+//-----------------------------------------------------------------------------

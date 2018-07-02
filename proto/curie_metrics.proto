@@ -1,0 +1,78 @@
+/*
+ * Copyright (c) 2016 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+message CurieMetric {
+  enum Name {
+    kCpuUsage = 1000;
+    kMemUsage = 2000;
+    kMemActive = 2001;
+    kNetReceived = 3000;
+    kNetTransmitted = 3001;
+    kDatastoreReadLatency  = 4000;
+    kDatastoreWriteLatency  = 4001;
+    kDatastoreRead = 4002;
+    kDatastoreWrite = 4003;
+  }
+
+  enum Type {
+    // Gauge: Instantaneous value that may increase or decrease over time, such
+    // as voltage, temperature, queue depth.
+    kGauge = 0;
+
+    // Counter: Monotonically increasing values that are expected to roll over,
+    // such as clock ticks, total write operations, error counts.
+    kCounter = 1;
+  }
+
+  enum Consolidation {
+    kLast = 0;
+    kMin = 1;
+    kMax = 2;
+    kAvg = 3;
+  }
+
+  enum Unit {
+    kNone = 0;
+    kOperations = 1;
+    kPercent = 2;
+    kMicroseconds = 144;
+    kMilliseconds = 147;
+    kSeconds = 150;
+    kBits = 200;
+    kKilobits = 203;
+    kMegabits = 206;
+    kBytes = 300;
+    kKilobytes = 303;
+    kMegabytes = 306;
+    kHertz = 450;
+    kKilohertz = 453;
+    kMegahertz = 456;
+  }
+
+  enum Rate {
+    kInstantaneous = 0;
+    kPerMillisecond = 97;
+    kPerSecond = 100;
+    kPerMinute = 200;
+    kPerHour = 300;
+  }
+
+  required Name name = 1;
+
+  // Human-readable counter description.
+  required string description = 2;
+
+  required Type type = 3;
+  required Consolidation consolidation = 4;
+  required Unit unit = 5;
+  optional Rate rate = 6 [ default = kInstantaneous ];
+
+  repeated int64 timestamps = 7;
+  repeated int64 values = 8;
+
+  required string instance = 9;
+  optional bool experimental = 10 [ default = false ];
+}

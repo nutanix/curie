@@ -1,0 +1,138 @@
+name: throughput_scalability_rand-writes
+
+display_name: "Throughput Scalability: Random Writes"
+
+summary: Maximum sustained throughput performance for sequential-reads,
+  sequential-writes, random-reads and random-writes.
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to demonstrate maximum sustained throughput
+  performance achieved as number of nodes used in a cluster.
+  Available Variations:
+  <ol>
+    <li> Sequential Reads (1M) </li>
+    <li> Sequential (Over) Writes (1M) </li>
+    <li> Random Reads (8K) </li>
+    <li> Random (Over) Writes (8K) </li>
+  </ol>
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the VM template on each node.</li>
+    <li>Clone one VM on each node.</li>
+    <li>Pre-fill all the VM(s):</li>
+      <ul class="indented">
+        <li> Sequential Reads (1M): True </li>
+        <li> Sequential (Over) Writes (1M): True </li>
+        <li> Random Reads (8K): True </li>
+        <li> Random (Over) Writes (8K): True </li>
+      </ul>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the workload on the VM from the first Node.</li>
+    <li>Run for 30 minutes.</li>
+    <li>Start the workload on the VM from the Second Node.</li>
+    <li>Run for 30 minutes.</li>
+    <li>Start the workload on the VM from the Third Node.</li>
+    <li>Run for 30 minutes.</li>
+    <li>Start the workload on the VM from the Fourth Node.</li>
+    <li>Run for 30 minutes.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs per VM</li>
+    <li>RAM: 4 GB per VM</li>
+    <li>Cluster Storage:
+      <ul class="indented">
+        <li>256 GB per VM, 4 VMs = 1TB</li>
+      </ul>
+    </li>
+    <li>IP Addresses: 1 per VM</li>
+    <li>This test expects atleast a 4 node cluster</li>
+  </ul>
+
+tags:
+  - throughput
+  - scalability
+  - performance
+
+vars:
+  vms_per_node:
+    default: 1
+    min: 1
+    max: 4
+  num_nodes:
+    default: 4
+    min: 1
+  runtime_secs:
+    default: 7200
+    min: 1
+    max: 14400
+
+estimated_runtime: 16200
+
+vms:
+{% for node_index in range(num_nodes) %}
+  - Node {{ node_index }}:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 64
+      nodes: {{ node_index }}
+      count_per_node: {{ vms_per_node }}
+{% endfor %}
+
+workloads:
+{% for node_index in range(num_nodes) %}
+  - Random Write {{ node_index }}:
+      vm_group: Node {{ node_index }}
+      config_file: randwrite.fio
+{% endfor %}
+
+results:
+{% for node_index in range(num_nodes) %}
+  - Node {{ node_index }} - Random Write IOPS:
+      vm_group: Node {{ node_index }}
+      result_type: iops
+      aggregate: sum
+{% endfor %}
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+{% for node_index in range(num_nodes) %}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: Node {{ node_index }}
+  - vm_group.PowerOn:
+      vm_group_name: Node {{ node_index }}
+  - workload.PrefillRun:
+      workload_name: Random Write {{ node_index }}
+{% endfor %}
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+{% for node_index in range(num_nodes) %}
+  - workload.Start:
+      workload_name: Random Write {{ node_index }}
+      runtime_secs: {{ runtime_secs - (runtime_secs / num_nodes) * node_index }}
+      async: True
+      annotate: True
+  - test.Wait:
+      duration_secs: {{ runtime_secs / num_nodes }}
+{% endfor %}
+{% for node_index in range(num_nodes) %}
+  - workload.Wait:
+      workload_name: Random Write {{ node_index }}
+{% endfor %}
+teardown:
+  - cluster.CleanUp: {}

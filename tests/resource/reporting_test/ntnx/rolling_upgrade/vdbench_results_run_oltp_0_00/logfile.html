@@ -1,0 +1,134 @@
+<pre>
+Copyright (c) 2000, 2015, Oracle and/or its affiliates. All rights reserved.
+Vdbench distribution: vdbench50403
+
+10:54:14.840 input argument scanned: '-f/home/nutanix/oltp.vdb'
+10:54:14.841 input argument scanned: '-o/home/nutanix/test_output'
+10:54:14.841 input argument scanned: '-e10320'
+10:54:14.842 input argument scanned: '-i1'
+10:54:14.842 java.vendor                   Oracle Corporation
+10:54:14.842 java.home                     /usr/lib/jvm/java-1.7.0-openjdk-1.7.0.91.x86_64/jre
+10:54:14.842 java.vm.specification.version 1.7
+10:54:14.842 java.vm.version               24.91-b01
+10:54:14.842 java.vm.vendor                Oracle Corporation
+10:54:14.842 java.specification.version    1.7
+10:54:14.842 java.class.version            51.0
+10:54:14.842 user.name                     root
+10:54:14.842 user.dir                      /root
+10:54:14.842 java.class.path               /home/nutanix/vdbench/:/home/nutanix/vdbench/classes:/home/nutanix/vdbench/vdbench.jar
+10:54:14.842 os.name                       Linux
+10:54:14.843 os.arch                       amd64
+10:54:14.843 os.version                    2.6.32-504.el6.x86_64
+10:54:14.843 sun.arch.data.model           64
+10:54:14.905
+10:54:14.905 Adjusted default JVM count for host=localhost from jvms=1 to jvms=6 because of iorate=max and a total of 6 sds.
+10:54:14.906
+10:54:14.956 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-10-151216-10.54.14.809 -l localhost-0 -p 5570
+10:54:14.976 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-11-151216-10.54.14.809 -l localhost-1 -p 5570
+10:54:14.996 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-12-151216-10.54.14.809 -l localhost-2 -p 5570
+10:54:15.016 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-13-151216-10.54.14.809 -l localhost-3 -p 5570
+10:54:15.037 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-14-151216-10.54.14.809 -l localhost-4 -p 5570
+10:54:15.059 Starting slave: /home/nutanix/vdbench/vdbench SlaveJvm -m localhost -n localhost-15-151216-10.54.14.809 -l localhost-5 -p 5570
+10:54:15.318 Slave localhost-2 connected
+10:54:15.323 Slave localhost-0 connected
+10:54:15.351 Slave localhost-1 connected
+10:54:15.421 Slave localhost-3 connected
+10:54:15.464 Slave localhost-5 connected
+10:54:15.472 Slave localhost-4 connected
+10:54:15.498 All slaves are now connected
+10:54:15.599 sd=sd1,lun=/dev/sdb lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+10:54:15.599 sd=sd2,lun=/dev/sdc lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+10:54:15.599 sd=sd3,lun=/dev/sdd lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+10:54:15.599 sd=sd4,lun=/dev/sde lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+10:54:15.600 sd=sd5,lun=/dev/sdf lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+10:54:15.600 sd=sd6,lun=/dev/sdg lun size: 34359738368 bytes; 32.0000 GB (1024**3); 34.3597 GB (1000**3)
+
+Link to Run Definitions:         <A HREF="#_983814036">run1 For loops: None</A>
+
+10:54:15.705 User requesting monitoring of this run using file '/home/nutanix/vdbench_monitor'.
+10:54:15.768 Waiting for synchronization of all slaves
+10:54:16.470 Synchronization of all slaves complete
+10:54:17.001 Starting RD=run1; I/O rate: Controlled MAX; elapsed=10320; For loops: None
+
+<a name="_983814036"></a><i><b>10:54:17.003 Starting RD=run1; I/O rate: Controlled MAX; elapsed=10320; For loops: None</b></i>
+
+
+Dec 16, 2015  interval        i/o   MB/sec   bytes   read     resp     read    write     resp     resp queue  cpu%  cpu%
+                             rate  1024**2     i/o    pct     time     resp     resp      max   stddev depth sys+u   sys
+10:54:18.169         1    4101.00    45.35   11595  48.28    1.494    1.855    1.157   21.511    1.655   6.1  42.5   5.9
+10:54:19.033         2    3969.00    44.16   11665  46.96    1.494    1.835    1.191   23.423    1.585   6.0  26.7   4.9
+10:54:20.067         3    4182.00    47.16   11823  48.49    1.351    1.482    1.228   29.353    1.169   5.6  16.6   4.9
+10:54:21.065         4    4145.00    46.63   11796  46.80    2.111    2.691    1.600   38.909    2.657   8.8  25.3   4.9
+10:54:22.061         5    4212.00    46.17   11494  46.91    2.083    2.737    1.505   32.897    2.934   8.7  15.5   4.4
+10:54:23.060         6    4208.00    47.31   11789  45.51    1.623    2.030    1.284   25.729    2.080   6.8  14.4   3.9
+10:54:24.060         7    4206.00    45.61   11370  46.60    1.358    1.531    1.206   14.577    1.076   5.7  14.9   4.4
+10:54:25.060         8    4083.00    46.27   11881  47.42    2.472    2.737    2.233  142.355    9.295  10.3  13.1   3.9
+10:54:26.063         9    4313.00    47.92   11650  48.09    1.460    1.744    1.197   26.836    1.796   6.1  13.5   3.9
+10:54:27.057        10    4229.00    47.73   11835  46.75    1.265    1.395    1.151   19.041    0.923   5.3  15.1   4.6
+10:54:28.060        11    4286.00    47.69   11666  48.30    1.248    1.345    1.157   15.368    0.979   5.4  14.3   4.6
+10:54:29.060        12    4233.00    47.20   11692  47.86    1.299    1.380    1.225   21.425    1.212   5.5  14.4   4.4
+10:54:30.056        13    4180.00    47.75   11978  48.59    1.304    1.473    1.145   25.725    1.287   5.4  14.0   3.6
+10:54:31.056        14    4198.00    47.38   11833  46.64    1.213    1.233    1.196   13.809    0.978   5.1  12.3   3.1
+10:54:32.056        15    4283.00    47.36   11594  47.65    1.208    1.267    1.154   15.886    0.964   5.2  14.3   3.8
+10:54:33.059        16    4222.00    47.16   11713  47.06    1.206    1.190    1.220   22.969    1.144   5.1  17.0   4.1
+10:54:34.054        17    4181.00    46.77   11730  48.29    1.288    1.401    1.182   20.932    1.407   5.4  10.8   4.1
+10:54:35.056        18    4175.00    46.16   11594  47.76    1.212    1.229    1.196   16.489    1.080   5.1  12.2   4.1
+10:54:36.054        19    4257.00    48.47   11938  48.53    1.137    1.179    1.097   15.288    0.803   4.8  13.1   4.6
+10:54:37.053        20    4170.00    46.88   11787  47.65    1.266    1.268    1.264   26.847    1.285   5.3  10.9   3.9
+10:54:38.053        21    4294.00    47.80   11671  47.48    1.205    1.205    1.206   20.768    1.248   5.2  10.8   4.4
+10:54:39.054        22    4162.00    46.53   11723  46.54    1.205    1.235    1.179   16.150    1.083   5.0  11.2   4.2
+10:54:40.051        23    4260.00    47.72   11745  46.50    1.120    1.148    1.096   12.346    0.786   4.8  11.8   5.1
+10:54:41.053        24    4287.00    48.73   11918  48.15    1.161    1.146    1.175   18.321    0.872   5.0  10.9   3.6
+10:54:42.055        25    4305.00    47.67   11611  48.90    1.187    1.162    1.212   16.606    1.094   5.1  10.7   4.1
+10:54:43.050        26    4165.00    46.53   11714  46.75    1.242    1.195    1.283   18.941    1.405   5.2  10.6   4.1
+10:54:44.052        27    4264.00    47.49   11678  48.10    1.178    1.097    1.253   13.604    1.108   5.0  10.3   3.9
+10:54:45.054        28    4131.00    45.00   11422  48.34    1.083    1.035    1.127   14.437    0.933   4.5  10.3   3.3
+10:54:46.051        29    4156.00    46.34   11692  46.13    1.151    1.140    1.160   16.435    1.140   4.8  10.0   3.9
+10:54:47.052        30    4161.00    47.04   11853  46.17    1.099    1.066    1.127   14.143    0.951   4.6   9.7   3.8
+11:31:00.042      2203    4551.00    50.48   11631  47.79    6.912    2.897   10.587  229.762   13.191  30.9   6.4   3.8
+11:31:01.043      2204    9295.00    99.03   11171  49.36    3.129    1.571    4.648  171.704    7.063  29.2  10.1   5.7
+11:31:02.043      2205    7045.00    76.39   11369  48.39    4.354    1.672    6.870  165.587    9.953  30.4   8.7   4.9
+11:31:03.043      2206    9331.00    98.84   11107  49.14    3.194    1.535    4.796  166.257    8.273  30.0  10.0   6.2
+11:31:04.044      2207    7628.00    81.55   11210  48.03    4.049    1.800    6.127  165.186    9.501  30.7   9.2   4.9
+11:31:05.043      2208    8000.00    85.61   11220  49.06    3.610    1.595    5.552  180.266    8.895  30.1   8.7   4.6
+11:31:06.043      2209    5711.00    62.57   11488  48.52    4.837    2.635    6.912  407.449   13.254  26.3   7.9   4.1
+11:31:07.044      2210    6317.00    67.30   11172  49.07    3.910    1.564    6.170  233.249    8.742  24.9   8.8   4.4
+11:31:08.043      2211    5171.00    56.55   11466  48.21    5.121    1.769    8.242  136.961   11.076  26.7   7.2   3.2
+11:31:09.043      2212    4407.00    49.97   11889  47.20    6.331    1.821   10.363  262.259   11.730  27.7   5.9   3.1
+11:31:10.043      2213    6367.00    68.70   11314  48.30    3.896    1.751    5.900  193.860    8.877  24.9   8.8   4.4
+11:31:11.000 User requested early Vdbench termination.
+11:31:11.106      2214    9263.00    98.57   11158  48.90    2.429    1.260    3.547  186.501    6.183  22.4  13.4   7.8
+11:31:11.186avg_2-2214    3363.85    38.37   11961  47.06    8.495    7.424    9.446 78197.807  218.155  28.6   5.5   2.5
+11:31:11.197 *
+11:31:11.197 **********************************************************************************************
+11:31:11.197 * Observed Workload skew for wd=wd5 delta greater than 1% (24.17). See skew.html for details *
+11:31:11.197 **********************************************************************************************
+11:31:11.197 *
+11:31:11.197 *
+11:31:11.197 *************************************************************************************************************************************
+11:31:11.197 * Possible reasons for workload skew being out of sync:                                                                             *
+11:31:11.197 *                                                                                                                                   *
+11:31:11.197 * - Elapsed time too short.                                                                                                         *
+11:31:11.197 *   Each SD should have done at least 2000 i/o's. Adding 'warmup=nn' may help this.                                                 *
+11:31:11.197 *   For SD concatenation this is the ONLY acceptable reason. Contact me at the Oracle Vdbench Forum if the differences are too big. *
+11:31:11.197 *                                                                                                                                   *
+11:31:11.197 * - A mix of seekpct=seq and random workloads.                                                                                      *
+11:31:11.198 *   Sequential workloads may run on only ONE slave, but random workloads                                                            *
+11:31:11.198 *   may run on multiple slaves. Workload skew depends on ALL workloads                                                              *
+11:31:11.198 *   running on all slaves. Force slave count to just one. (hd=default,jvms=1)                                                       *
+11:31:11.198 *                                                                                                                                   *
+11:31:11.198 * - Not enough threads available to guarantee that all workloads can run                                                            *
+11:31:11.198 *   on all slaves.                                                                                                                  *
+11:31:11.198 *                                                                                                                                   *
+11:31:11.198 * - There may be more, can't think (of any) right now. :-)                                                                          *
+11:31:11.198 *                                                                                                                                   *
+11:31:11.198 * You may use 'abort_failed_skew=nn' for Vdbench to abort after skew failures. See documentation.                                   *
+11:31:11.198 *                                                                                                                                   *
+11:31:11.198 *************************************************************************************************************************************
+11:31:11.198 *
+11:31:11.515 Flushing all reports
+11:31:11.517 Java Heap in MB. max:  455.000; current:   70.000; used:   22.428; free:   47.572
+11:31:11.559 Ending Reporter
+11:31:11.697 Vdbench execution completed successfully. Output directory: /home/nutanix/test_output
+
+11:31:11.900 Java Heap in MB. max:  455.000; current:   69.000; used:   18.555; free:   50.445

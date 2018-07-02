@@ -1,0 +1,155 @@
+name: database_colocation_high
+
+display_name: "Database Colocation: High Intensity"
+
+summary: Impact of running colocated DB workloads (OLTP+DSS)
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to show the effects of running two different database
+  workloads (OLTP and DSS) on three different nodes within the same cluster.
+  <ol>
+    <li>Standard Intensity:</li>
+      <ul class="indented">
+        <li>OLTP: 4000 IOPS with 28x4 GB working set per VM</li>
+        <li>OLTP Log: 200 IOPS with 2x2 GB working set per VM</li>
+        <li>DSS: 720 IOPS with 28x4 GB working set per VM</li>
+        <li>DSS Log: 200 IOPS with 2x2 GB working set per VM</li>
+      </ul>
+    <li>High Intensity:</li>
+      <ul class="indented">
+        <li>OLTP: 4000 IOPS with 28x4 GB working set per VM</li>
+        <li>OLTP Log: 200 IOPS with 2x2 GB working set per VM</li>
+        <li>DSS: 1200 IOPS with 32x4 GB working set per VM</li>
+        <li>DSS Log: 400 IOPS with 2x2 GB working set per VM</li>
+      </ul>
+  </ol>
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB VM on node 1, and a DSS DB VM on nodes 2 and 3.</li>
+    <li>Pre-fill the VMs with data.</li>
+    <li>Warm up the OLTP DB for 30 minutes.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload with a runtime of 60 minutes.</li>
+    <li>Wait 30 minutes while OLTP workload runs alone.</li>
+    <li>Start the DSS workload with a runtime of 30 minutes.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs on nodes 1-3</li>
+    <li>RAM: 4 GB on nodes 1-3</li>
+    <li>Cluster Storage: 348 GB</li>
+    <li>IP Addresses: 3</li>
+  </ul>
+
+tags:
+  - performance
+  - network
+  - mixed workloads
+
+estimated_runtime: 6000
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      nodes: 0
+      count_per_node: 1
+  - DSS:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      nodes: 1,2
+      count_per_node: 1
+
+workloads:
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - OLTP Warmup:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - DSS:
+      vm_group: DSS
+      config_file: dss.fio
+  - DSS_Prefill:
+      vm_group: DSS
+      config_file: dss_prefill.fio
+
+results:
+  - OLTP IOPS:
+      vm_group: OLTP
+      result_type: iops
+      report_group: performance
+      report_metrics:
+        - Variability
+  - OLTP I/O Latency:
+      vm_group: OLTP
+      result_type: latency
+      report_group: performance
+      report_metrics:
+        - Median
+  - DSS IOPS:
+      vm_group: DSS
+      result_type: iops
+      report_group: performance
+      report_metrics:
+        - Variability
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.CloneFromTemplate:
+      vm_group_name: DSS
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: DSS
+  - workload.Start:
+      workload_name: DSS_Prefill
+      async: True
+  - workload.PrefillRun:
+      workload_name: OLTP
+  - workload.Wait:
+      workload_name: DSS_Prefill
+      timeout_secs: 7200
+  - workload.Start:
+      workload_name: OLTP Warmup
+      runtime_secs: 1800
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 3600
+      stagger_secs: 900
+      async: True
+  - test.Wait:
+      duration_secs: 1800
+  - workload.Start:
+      workload_name: DSS
+      runtime_secs: 1800
+      annotate: True
+  - workload.Wait:
+      workload_name: OLTP
+
+teardown:
+  - cluster.CleanUp: {}

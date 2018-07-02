@@ -1,0 +1,261 @@
+/*
+ * Copyright (c) 2015 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+message CurieTestMetadata {
+  // Unique test name.
+  required string test_name = 1;
+
+  // Unique, human-readable test name.
+  required string test_display_name = 2;
+
+  // Short (one-line), human-readable description of the test.
+  required string test_summary = 3;
+
+  // HTML-formatted, user-facing description of what the test does.
+  required string test_description = 4;
+
+  // Total estimated time (in seconds) to run the test.
+  optional int64 estimated_runtime_secs = 7;
+
+  // If applicable, array of string tags defined for the test.
+  // NB: Tags may be formatted by the front-end.  In particular, cannot make
+  // assumptions regarding case (in-)sensitivity.
+  repeated string test_tags = 8;
+
+  optional string vars_json = 9;
+  optional string source_directory = 10;
+  optional bool readonly = 11 [ default = false ];
+}
+
+message CurieTestStatus {
+  enum Type {
+    option allow_alias = true;
+    kNotStarted = 0;
+    kQueued = 0;  // Deprecated - alias for kNotStarted
+    kExecuting = 1;
+    kRunning = 1;  // Deprecated - alias for kExecuting
+    kStopping = 2;
+    kFailing = 3;
+    kSucceeded = 4;
+    kFailed = 5;
+    kStopped = 6;
+    kCanceled = 7;
+    kInternalError = 8;
+  }
+}
+
+// Phases a test can be in while it has status kRunning.
+message CurieTestPhase {
+  enum Type {
+    option allow_alias = true;
+    kPreSetup = 0;
+    kPrecondition = 0;  // Deprecated - alias for kPreSetup
+    kSetup = 1;
+    kRun = 2;
+    kTeardown = 3;
+  }
+}
+
+// Represents a specific step in a given phase.
+message CurieTestStepProto {
+  // Phase that this step is a part of.
+  required CurieTestPhase.Type phase = 1;
+
+  // Step number.
+  required int32 step_num = 2;
+
+  // Step description.
+  optional string step_description = 3;
+
+  // Estimate on how long this step will take to run. This should only be
+  // filled in if a step has specific information about how long it will
+  // approximately run (e.g., a step that starts a command then runs it for an
+  // hour before the step finishes).
+  optional int64 step_time_estimate_secs = 6;
+}
+
+// Available workload generators.
+message CurieTestIOGen {
+  enum Type {
+    kUnknown = 0;
+    kFio = 1;
+  }
+}
+
+message CurieTestConfiguration {
+  // Name of the cluster to run the test on. The cluster name must be the name
+  // of a cluster that exists in the curie server's settings.
+  optional string cluster_name = 1;
+
+  optional string vars_json = 2;
+}
+
+message CurieTestState {
+  // Globally unique test identifier.
+  required int64 test_id = 1;
+
+  // Status of the test.
+  required CurieTestStatus.Type status = 5;
+
+  // Steps already completed in this test. The union of this and
+  // 'remaining_steps' constitutes all steps in the test.
+  repeated CurieTestStepProto completed_steps = 6;
+
+  // Remaining steps to complete this test. The union of 'completed_steps' and
+  // this constitutes all steps in the test.
+  repeated CurieTestStepProto remaining_steps = 7;
+
+  // Error message if the test failed.
+  optional string error_msg = 8;
+}
+
+message CurieTestResult {
+  // Result display name is a brief text title for the results. The
+  // description can include more information to further orient a user to the
+  // data representation.
+  required string name = 1;
+  required string description = 2;
+  required string group = 3;
+
+  // The result_id is a unique string to identify a result that can be
+  // compared across other test runs of the same type. For instance, OLTP
+  // IOPS data for the OLTP + DSS test will have a specific ID, that is
+  // different from the DSS IOPS data for the same test and OLTP IOPS from the
+  // snapshot test will also be different.  This ID cannot change for a
+  // particular result so that they can be appropriately compared across runs.
+  // Additionally, if multiple results of a similar type are prepared, they
+  // should be distinguished in a consistent manner.
+  // e.g. oltp_configurable_test_oltp_0_iops refers to the first node's IOPS
+  // data for the OLTP configurable test.
+  required string result_id = 4;
+
+  // Exactly one of the following should be set.
+  message DataRaw {
+    // Raw test result data. It's assumed that an entity that fetches test
+    // results for a test that returns raw test result data knows how to
+    // interpret that data based on the CurieTestResult name.
+    required string data = 1;
+  }
+  optional DataRaw data_raw = 100;
+
+  message Data2D {
+    // Exactly one of the following *_data fields should be set depending on
+    // how the X and Y values are encoded.
+    message Pickled2DData {
+      // Pickled lists of X and Y values for this result. There should be an
+      // equal number values in both lists.
+      required bytes x_vals_pickled = 1;
+      required bytes y_vals_pickled = 2;
+    }
+    optional Pickled2DData pickled_2d_data = 1;
+
+    // Details on how to plot the data
+    // If any of the following limits are set, they should be reflected in
+    // any plots generated using the data in this message. If these are not
+    // set the higher-levels of the stack should determine the best axis
+    // limits to be used to represent the data.
+    optional int64 plot_x_min = 2;
+    optional int64 plot_x_max = 3;
+    optional int64 plot_y_min = 4;
+    optional int64 plot_y_max = 5;
+
+    // The Unit is the type of data in the x and y series.
+    enum UnitType {
+      kCount = 0;
+      // e.g. active=1, inactive=0
+      kBoolean = 1;
+      // Seconds since the epoch
+      kUnixTimestamp = 2;
+      kIOPS = 3;
+      kBytesPerSecond = 4;
+      kPercent = 5;
+      kHertz = 6;
+      kMicroseconds = 7;
+    }
+    // Units to help identify the data in the series.
+    required UnitType x_unit_type = 6;
+    required UnitType y_unit_type = 7;
+
+    // Descriptive text to assist users in interpreting any generated plots.
+    optional string x_label = 8;
+    optional string y_label = 9;
+
+    // Set of metrics used to judge the quality of this result.
+    enum ReportMetric {
+      // Prevent report scoring for this result.
+      kNoScore = 0;
+      // Spread, e.g. variance, standard deviation, range.
+      kVariability = 1;
+      kMin = 2;
+      kMean = 3;
+      kMedian = 4;
+      kMax = 5;
+      // Fail if any y value is not 0, e.g. for error count results.
+      kAnyFail = 6;
+    }
+    repeated ReportMetric report_metrics = 10;
+
+    // Can be any string (e.g. "performance", "availability") used to group the
+    // results together in the report.
+    optional string report_group = 11;
+
+    // Annotations associated with specific x values. If specified, 'y_val_min'
+    // and 'y_val_max' specify to what range the annotation applies at x =
+    // 'x_val'. If not specified, they default to the min y axis value and max
+    // y axis value respectively.
+    //
+    // Note that none of the x and y values in an annotation need to be in
+    // 'x_vals' or 'y_vals'.
+    message XAnnotation {
+      optional int64 x_val = 1;
+      optional int64 y_val_min = 2 [ default = -1 ];
+      optional int64 y_val_max = 3 [ default = -1 ];
+      required string description = 4;
+    }
+    repeated XAnnotation x_annotations = 100;
+
+    // Annotations associated with specific y values. If specified, 'x_val_min'
+    // and 'x_val_max' specify to what range the annotation applies at y =
+    // 'y_val'. If not specified, they default to the min x axis value and max
+    // x axis value respectively.
+    //
+    // Note that none of the x and y values in an annotation need to be in
+    // 'x_vals' or 'y_vals'.
+    message YAnnotation {
+      optional int64 y_val = 1;
+      optional int64 x_val_min = 2 [ default = -1 ];
+      optional int64 x_val_max = 3 [ default = -1 ];
+      required string description = 4;
+    }
+    repeated YAnnotation y_annotations = 101;
+
+    // Annotations associated with specific "rectangle". The following are
+    // valid uses:
+    //
+    // Case 1: all fields set.
+    // Case 2: x values set, y values not set.
+    // Case 3: x values not set, y values set.
+    //
+    // Note that none of the x and y values in an annotation need to be in
+    // 'x_vals' or 'y_vals'.
+    message XYAnnotation {
+      optional int64 x_val_min = 1 [ default = -1 ];
+      optional int64 x_val_max = 2 [ default = -1 ];
+      optional int64 y_val_min = 3 [ default = -1 ];
+      optional int64 y_val_max = 4 [ default = -1 ];
+      required string description = 5;
+    }
+    repeated XYAnnotation xy_annotations = 102;
+  }
+  optional Data2D data_2d = 101;
+}
+
+message CurieTestInfo {
+  // The test's state.
+  required CurieTestState test_state = 2;
+}

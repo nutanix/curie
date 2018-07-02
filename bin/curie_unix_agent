@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+#
+# Copyright (c) 2015 Nutanix Inc. All rights reserved.
+#
+
+import errno
+import logging
+import os
+import signal
+import sys
+import time
+import traceback
+
+import gflags
+
+from curie import log as curie_log
+from curie.unix_agent import CurieUnixAgent
+
+gflags.DEFINE_bool("curie_unix_agent_enable_self_monitoring",
+                   False,
+                   "If True, enable the curie Unix agent to self-monitor "
+                   "itself for deaths.")
+gflags.DEFINE_string("curie_unix_agent_logdir",
+                     None,
+                     "If set, log curie_unix_agent output to this directory. "
+                     "Otherwise, output to stderr.")
+gflags.DEFINE_boolean("debug",
+                      True,
+                      "If True, enable DEBUG log messages.")
+
+log = logging.getLogger(__name__)
+
+
+def self_monitor():
+  """
+  Ensure that a child process is always running by forking a child process and
+  restarting it whenever it dies.
+  """
+  while True:
+    try:
+      child_pid = os.fork()
+    except OSError:
+      log.error("Failed to create child process")
+      raise
+    if child_pid == 0:
+      return
+    log.info("Started child PID %s", child_pid)
+    while True:
+      try:
+        pid, status = os.waitpid(child_pid, 0)
+        log.error("Child PID %d exited with status %d", child_pid, status)
+        break
+      except OSError as ex:
+        if ex.errno == errno.EINTR:
+          continue
+        elif ex.errno == errno.ECHILD:
+          log.warning("ECHILD waiting for child process %d", child_pid)
+          break  # Child process no longer exists.
+        else:
+          log.error("Error %s waiting for child process %d",
+                    str(ex), child_pid)
+          raise
+    # Kill the child's process group to kill any related processes.
+    try:
+      os.killpg(child_pid, signal.SIGKILL)
+    except OSError as ex:
+      if ex.errno != errno.ESRCH:
+        raise
+    # Wait a bit before forking another child process.
+    time.sleep(1)
+
+
+def main():
+  # Set SIGINT handler for C-c (useful during development).
+  signal.signal(signal.SIGINT, lambda signo, frame: os._exit(2))
+  if gflags.FLAGS.curie_unix_agent_enable_self_monitoring:
+    self_monitor()
+  # Put the agent in its own process group to make it easier to kill any child
+  # processes it might fork off as part of the tests it executes.
+  os.setpgid(0, 0)
+  curie_unix_agent = CurieUnixAgent()
+  curie_unix_agent.initialize()
+  curie_unix_agent.run()
+
+
+if __name__ == "__main__":
+  try:
+    gflags.FLAGS(sys.argv)
+  except gflags.FlagsError as ex:
+    sys.stderr.write("Error %s\nUsage: %s [FLAGS]\n" % (ex, sys.argv[0]))
+    sys.exit(3)
+
+  try:
+    base_filename = os.path.basename(os.path.splitext(sys.argv[0])[0])
+    log_file = os.path.join(gflags.FLAGS.curie_unix_agent_logdir,
+                            base_filename + ".log")
+    curie_log.initialize(log_file=log_file, debug=gflags.FLAGS.debug)
+  except Exception as ex:
+    sys.stderr.write("Failed to initialize logger: %s\n%s\n" %
+                     (ex, traceback.format_exc()))
+    sys.exit(1)
+
+  try:
+    main()
+  except Exception:
+    log.exception("Unhandled exception during main loop")
+    sys.exit(1)

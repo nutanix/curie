@@ -1,0 +1,133 @@
+name: extended_node_failure
+
+display_name: "Extended Node Failure"
+
+summary: Impact of a node failure in a cluster
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to demonstrate what happens to the performance of
+  VMs in the cluster when a node is failed without warning, similar to a
+  single-node power failure.
+  <br /><br />
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB and VDI VM templates.</li>
+    <li>Clone 75 VDI VMs per host in cluster.</li>
+    <li>Clone one OLTP DB VM per host in the cluster.</li>
+    <li>Power on the VMs.</li>
+    <li>Pre-fill the OLTP DB and every VDI VM.</li>
+    <li>Warm up the OLTP DB VMs.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload on every OLTP DB VM.</li>
+    <li>Wait for 20 minutes.</li>
+    <li>
+      Fail the first node in the cluster by powering off through the out-of-band
+      management.
+    </li>
+    <li>Wait for 2.5 hours in the failed state for observation.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 154 vCPUs on every node</li>
+    <li>RAM: 154 GB on every node</li>
+    <li>Cluster Storage: 866GB per node</li>
+    <li>IP Addresses: 76 per node</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+  <br /><br />
+  <span style="color: #FF0000">
+    This test performs hardware power operations on the target's nodes, which
+    may result in unavailability or permanent damage to non-Nutanix targets.
+  </span>
+
+tags:
+  - availability
+  - data loss
+  - performance
+
+estimated_runtime: 37800
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      count_per_node: 1
+  - VDI:
+      template: ubuntu1604
+      vcpus: 2
+      ram_mb: 2048
+      data_disks:
+        count: 1
+        size: 16
+      count_per_node: 75
+
+workloads:
+  - OLTP Warmup:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - VDI:
+      vm_group: VDI
+      config_file: vdi.fio
+      iogen_params:
+        reporting_interval: 30
+
+results:
+  - OLTP IOPS:
+      vm_group: OLTP
+      result_type: iops
+      report_group: performance
+      report_metrics:
+        - Variability
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.CloneFromTemplate:
+      vm_group_name: VDI
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: VDI
+  - workload.PrefillRun:
+      workload_name: OLTP
+  - workload.PrefillRun:
+      workload_name: VDI
+  - workload.Start:
+      workload_name: OLTP Warmup
+      runtime_secs: 3600
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 10200
+      stagger_secs: 900
+      async: True
+  - test.Wait:
+      duration_secs: 1200
+  - nodes.PowerOff:
+      nodes: 0
+  - workload.Wait:
+      workload_name: OLTP
+
+teardown:
+  - cluster.CleanUp: {}

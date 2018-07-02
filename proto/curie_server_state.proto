@@ -1,0 +1,321 @@
+/*
+ * Copyright (c) 2015 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+import "curie_extensions.proto";
+
+message CurieSettings {
+
+  // Cluster node information.
+  message ClusterNode {
+    // Node ID. Management software specific identifier which may be used to
+    // uniquely identify and query node properties.
+    // Current implementation expects:
+    //  For Hyper-V nodes: IP address or FQDN.
+    //  For ESX nodes: IP address or FQDN.
+    //  For AHV nodes: IP address, FQDN, node name, or node UUID.
+    required string id = 1;
+
+    // Per-node out-of-band management info for the cluster.
+    message NodeOutOfBandManagementInfo {
+      // Out-of-band management interface type.
+      enum InterfaceType {
+        // Default for backwards compatibility.
+        kUnknownInterface = 0;
+        // IPMI.
+        kIpmi = 1;
+        // Switched PDU.
+        kPdu = 2;
+        // None (Out-of-band management is not available, or will otherwise
+        // not be used)
+        kNone = 3;
+      }
+      optional InterfaceType interface_type = 1 [default = kUnknownInterface];
+
+      // Out-of-band management interface vendor.
+      enum Vendor {
+        // Default for backwards compatibility.
+        kUnknownVendor = 0;
+        // Supermicro.
+        kSupermicro = 1;
+        // Dell.
+        kDell = 2;
+      }
+      optional Vendor vendor = 2 [default = kUnknownVendor];
+
+      // Out-of-band management username.
+      optional string username = 3 [(nutanix.curie.encrypted) = true];
+
+      // Out-of-band management password.
+      optional string password = 4 [(nutanix.curie.encrypted) = true];
+
+      // Out-of-band management IP address.
+      optional string ip_address = 5;
+
+      // Out-of-band interface-specific information.
+      message InterfaceSpecificInfo{
+      }
+      optional InterfaceSpecificInfo interface_specific_info = 6;
+    }
+    optional NodeOutOfBandManagementInfo node_out_of_band_management_info = 2;
+
+    // Physical resources for a cluster node.
+    message NodeHardware {
+      // Total number of physical CPU packages.
+      optional int32 num_cpu_packages = 1;
+
+      // Total number of physical CPU cores.
+      optional int32 num_cpu_cores = 2;
+
+      // Total number of physical CPU threads.
+      optional int32 num_cpu_threads = 3;
+
+      // CPU speed in Hz.
+      optional int64 cpu_hz = 4;
+
+      // Memory size in bytes.
+      optional int64 memory_size = 5;
+
+      // TODO: add information for all HDDs/SSDs.
+    }
+    optional NodeHardware node_hardware = 3;
+  }
+
+  message Cluster {
+    // Unique cluster name. This is a unique name that's only relevant in the
+    // context of curie. For example, this name may have no relationship at
+    // all to the name of the cluster in the corresponding management server
+    // (e.g., vCenter) that manages the cluster.
+    required string cluster_name = 1;
+
+    // Hypervisor information. Curie only supports clusters whose nodes have
+    // the same hypervisor type.
+    message ClusterHypervisorInfo {
+      // Exactly one of the following should be set.
+      message EsxInfo {
+        // ESX versions for the cluster nodes Cluster.cluster_nodes. If the ESX
+        // version for a node can't be determined, we use the value "".
+        repeated string version = 1;
+
+        // ESX build strings for the cluster nodes Cluster.cluster_nodes. If
+        // the ESX build for a node can't be determined, we use the value "".
+        repeated string build = 2;
+      }
+      optional EsxInfo esx_info = 1;
+      message HypervInfo {
+        // Hyper-V version string for the cluster nodes.
+        repeated string version = 1;
+      }
+      optional HypervInfo hyperv_info = 2;
+      message AhvInfo {
+        // AHV version string for the cluster nodes.
+        repeated string version = 1;
+      }
+      optional AhvInfo ahv_info = 3;
+    }
+    required ClusterHypervisorInfo cluster_hypervisor_info = 2;
+
+    // Management server information for the cluster.
+    message ClusterManagementServerInfo {
+      // Exactly one of the following should be set.
+      message VcenterInfo {
+
+        // vCenter DNS name or IP address.
+        required string vcenter_host = 1;
+
+        // vCenter user name.
+        required string vcenter_user = 2 [(nutanix.curie.encrypted) = true];
+
+        // vCenter password.
+        required string vcenter_password = 3 [(nutanix.curie.encrypted) = true];
+
+        // Datacenter name of the datacenter that contains the cluster.
+        required string vcenter_datacenter_name = 4;
+
+        // Cluster name in the datacenter 'vcenter_datacenter_name'.
+        required string vcenter_cluster_name = 5;
+
+        // Datastore name. This datastore needs to be mounted on all nodes of
+        // the cluster. This is where curie test VMs will be deployed.
+        required string vcenter_datastore_name = 6;
+
+        // If specified, the network to use for creating all curie VMs. If
+        // this is not specified, the default network is chosen (appears to be
+        // the first network in alphabetical network name order).
+        optional string vcenter_network_name = 7;
+
+        // vCenter version string.
+        optional string vcenter_version = 8;
+
+        // vCenter build string.
+        optional string vcenter_build = 9;
+      }
+      optional VcenterInfo vcenter_info = 1;
+
+      message PrismInfo {
+        // Cluster virtual IP (if we support PC, likely this will be a PC host)
+        optional string prism_host = 1;
+        // Username for 'prism_host'.
+        optional string prism_username = 2 [(nutanix.curie.encrypted) = true];
+        // Password for 'prism_host'.
+        optional string prism_password = 3 [(nutanix.curie.encrypted) = true];
+        // Reserved. Not currently applicable.
+        optional string prism_datacenter_id = 4;
+        // Name or UUID of target cluster in Prism.
+        optional string prism_cluster_id = 5;
+        // Name or UUID of target container in Prism.
+        optional string prism_container_id = 6;
+        // Name or UUID for target network in Prism.
+        optional string prism_network_id = 7;
+        // Prism (cluster) version.
+        optional string prism_version = 8;
+      }
+      optional PrismInfo prism_info = 2;
+      
+      message VmmInfo {
+        // SCVMM host/console DNS name or IP address.
+        required string vmm_host = 1;
+
+        // SCVMM host/console user name.
+        required string vmm_host_user = 2 [(nutanix.curie.encrypted) = true];
+
+        // SCVMM host/console password.
+        required string vmm_host_password = 3 [(nutanix.curie.encrypted) = true];
+        
+        // SCVMM server DNS name or IP address.
+        required string vmm_server = 4;
+
+        // SCVMM user name.
+        required string vmm_user = 5 [(nutanix.curie.encrypted) = true];
+
+        // SCVMM password.
+        required string vmm_password = 6 [(nutanix.curie.encrypted) = true];
+
+        // VMM Library Server DNS name or IP address.
+        required string vmm_library_server = 7;
+
+        // VMM Library Server user name.
+        required string vmm_library_server_user = 8 [(nutanix.curie.encrypted) = true];
+
+        // VMM Library Server password.
+        required string vmm_library_server_password = 9 [(nutanix.curie.encrypted) = true];
+
+        // VMM Library Server share path name.
+        required string vmm_library_server_share_name = 10;
+
+        // VMM Library Server share path.
+        required string vmm_library_server_share_path = 11;
+
+        // Cluster name in the datacenter 'vmm_datacenter_name'.
+        required string vmm_cluster_name = 12;
+
+        // Share name.
+        required string vmm_share_name = 13;
+
+        // Share path. This share needs to be mounted on all nodes of
+        // the cluster. This is where curie test VMs will be deployed.
+        required string vmm_share_path = 14;
+
+        // If specified, the network to use for creating all curie VMs. If
+        // this is not specified, the default network is chosen (appears to be
+        // the first network in alphabetical network name order).
+        optional string vmm_network_name = 15;
+
+        // VMM version string.
+        optional string vmm_version = 16;
+      }
+      optional VmmInfo vmm_info = 3;
+    }
+    required ClusterManagementServerInfo cluster_management_server_info = 3;
+
+    // TODO (jklein): Cleanup handling of mgmt/clustering overlap on Nutanix.
+
+    // Cluster software information.
+    message ClusterSoftwareInfo {
+      // Exactly one of the following should be set.
+      message NutanixInfo {
+        // Prism API user name.
+        required string prism_user = 1 [(nutanix.curie.encrypted) = true];
+
+        // Prism API password.
+        required string prism_password = 2 [(nutanix.curie.encrypted) = true];
+
+        // Nutanix software version. We assume all nodes run the same version.
+        optional string version = 3;
+
+        // Cluster UUID to correlate with Pulse enabled clusters.
+        optional string cluster_uuid = 4;
+
+        // Cluster incarnation ID to correlate with Pulse enabled clusters.
+        optional uint64 cluster_incarnation_id = 5;
+
+        // Cluster virtual IP (if we support PC, likely this will be a PC host)
+        optional string prism_host = 6;
+      }
+      optional NutanixInfo nutanix_info = 1;
+
+      message VsanInfo {
+        // It is not necessary to store version here, as there is a bijection
+        // between ESX and VSAN versions.
+      }
+      optional VsanInfo vsan_info = 2;
+
+      // Clustering software not otherwise specified above.
+      message GenericInfo {
+        // Opaque version string.
+        optional string version = 1;
+      }
+      optional GenericInfo generic_info = 3;
+    }
+    required ClusterSoftwareInfo cluster_software_info = 4;
+
+    // Expected one per node in cluster.
+    repeated ClusterNode cluster_nodes = 5;
+  }
+
+  // List of clusters that curie can run tests on.
+  repeated Cluster clusters = 1;
+}
+
+//-----------------------------------------------------------------------------
+
+// Transient runtime server state.
+message ServerStatus {
+  // Representation of overall server status.
+  enum Status {
+    kUnknown = 0;
+    kUninitialized = 1;
+    kInitializing = 2;
+    kInitialized = 3;
+    kAwaitingEncryptionKey = 4;
+    kRecovering = 5;
+    kReady = 6;
+  }
+  optional Status status = 1 [default = kUnknown];
+
+  // Indication of whether the server is ready to service all RPCs. If
+  // false, 'status' may be checked for the specific server state.
+  //
+  // NB: It is not necessarily true that 'is_ready' is true iff
+  // status == 'kReady'.
+  optional bool is_ready = 2 [ default = false ];
+}
+
+//-----------------------------------------------------------------------------
+
+// Persisted server state.
+message CurieServerState {
+  // Server settings.
+  required CurieSettings settings = 1;
+
+  // List of test IDs for tests that need to be stopped.
+  repeated int64 to_stop_test_ids = 2;
+
+  // List of test IDs for tests that need to be removed. curie will take
+  // care of stopping the tests before removing their state.
+  repeated int64 to_remove_test_ids = 3;
+}

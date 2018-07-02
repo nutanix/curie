@@ -1,0 +1,4 @@
+include curie/mof_enum_defs.json
+include curie/parsetab.py
+recursive-include curie/etc *
+recursive-include curie/test/yaml *

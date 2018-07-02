@@ -1,0 +1,30 @@
+*General stuff
+compratio=2
+dedupsets=4
+swat=(xx,yy)
+
+/ This is a comment.
+# This is also a comment.
+* This is yet another comment.
+  Apparently you can even lead with whitespace to create a comment.
+
+*Storage definitions
+sd=sd1,lun=/dev/sdb,size=2G,openflags=o_direct,threads=1
+sd=sd2,lun=/dev/sdc,size=2G,openflags=o_direct,threads=1
+sd=sd3,lun=/dev/sdd,size=28G,openflags=o_direct
+sd=sd4,lun=/dev/sde,size=28G,openflags=o_direct
+sd=sd5,lun=/dev/sdf,size=28G,openflags=o_direct
+sd=sd6,lun=/dev/sdg,size=28G,openflags=o_direct
+
+*Log Write Workload
+wd=wd1,sd=sd1,xfersize=32768,rdpct=0,iorate=100,priority=1,seekpct=10
+wd=wd2,sd=sd2,xfersize=32768,rdpct=0,iorate=100,priority=2,seekpct=10
+
+*DB File Workload
+wd=wd3,sd=sd3,xfersize=(32768,10,8192,90),rdpct=50,iorate=1000,priority=3,seekpct=80
+wd=wd4,sd=sd4,xfersize=(32768,10,8192,90),rdpct=50,iorate=1000,priority=4,seekpct=80
+wd=wd5,sd=sd5,xfersize=(32768,10,8192,90),rdpct=50,iorate=1000,priority=5,seekpct=80
+wd=wd6,sd=sd6,xfersize=(32768,10,8192,90),rdpct=50,iorate=1000,priority=6,seekpct=80
+
+*The elapsed value below can be overridden in the test config.
+rd=run1,wd=wd*,elapsed=3600,iorate=max

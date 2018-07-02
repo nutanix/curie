@@ -1,0 +1,211 @@
+/*
+ * Copyright (c) 2016 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+import "curie_extensions.proto";
+
+message ConnectionParams {
+  // Username for login to 'address'.
+  optional string username = 1 [(nutanix.curie.encrypted) = true];
+
+  // Password for login to 'address'.
+  optional string password = 2 [(nutanix.curie.encrypted) = true];
+
+  // IPv4 address or hostname.
+  optional string address = 3;
+}
+
+message OutOfBandInterface {
+  enum Type {
+    // Default for backwards compatibility.
+    kUnknownInterface = 0;
+    // IPMI.
+    kIpmi = 1;
+    // Switched PDU.
+    kPdu = 2;
+    // None (Out-of-band management is not available, or will otherwise
+    // not be used)
+    kNone = 3;
+  }
+  // Type of OoB interface.
+  optional Type type = 1;
+
+  enum Vendor {
+    // Default for backwards compatibility.
+    kUnknownVendor = 0;
+    // Supermicro.
+    kSupermicro = 1;
+    // Dell.
+    kDell = 2;
+  }
+  // OoB interface vendor.
+  optional Vendor vendor = 2;
+
+  // OoB interface connection info.
+  optional ConnectionParams conn_params = 3;
+
+  message InterfaceSpecificInfo{
+  }
+  // Type- or vendor-specific information.
+  optional InterfaceSpecificInfo interface_specific_info = 4;
+}
+
+message ManagementServer {
+  enum Type {
+    kUnknown = 0;
+    kVcenter = 1;
+    kPrism = 2;
+    kVmm = 3;
+  }
+  // Unique identifier for management server.
+  optional string id = 1;
+
+  // Display name for management server.
+  optional string name = 2;
+
+  // Connection info for management server.
+  optional ConnectionParams conn_params = 3;
+
+  // Type of management server.
+  optional Type type = 4;
+
+  // Software version for management server.
+  optional string version = 5;
+}
+
+message Hypervisor {
+  enum Type {
+    kUnknown = 0;
+    kEsx = 1;
+    kAhv = 2;
+    kHyperv = 3;
+  }
+  // Type of hypervisor.
+  optional Type type = 1;
+
+  // Software version for the hypervisor.
+  optional string version = 2;
+}
+
+message ClusteringSoftware{
+  enum Type {
+    kUnknown = 0;
+    kNutanix = 1;
+    kVsan = 2;
+    kS2D = 3;
+  }
+  // Type of storage fabric in place on a cluster.
+  optional Type type = 1;
+
+  // Software version for the storage fabric.
+  optional string version = 2;
+}
+
+message VirtualMachine {
+  enum Type {
+    kUnknown = 0;
+    kCvm = 1;
+    kUvm = 2;
+  }
+
+  // Unique identifier for the VM.
+  optional string id = 1;
+
+  // Display name for the VM.
+  optional string name = 2;
+
+  // Connection info for the VM.
+  optional ConnectionParams conn_params = 3;
+
+  // Type of VM.
+  optional Type type = 4;
+}
+
+message ClusterNode {
+  // Unique identifier for the node.
+  optional string id = 1;
+
+  // Display name for the node.
+  optional string name = 2;
+
+  // Out-of-Band management interface info for the node.
+  optional OutOfBandInterface oob_info = 3;
+
+  // Hypervisor information for this node.
+  optional Hypervisor hypervisor = 4;
+}
+
+message Cluster {
+  // Unique identifier for cluster.
+  optional string id = 1;
+
+  // Display name for cluster.
+  optional string name = 2;
+
+  // Connection parameters for cluster software.
+  optional ConnectionParams conn_params = 3;
+
+  // Collection of logical storage accessible to the cluster.
+  repeated LogicalStorage storage_info_vec = 4;
+
+  // Collection of logical networks accessible to the cluster.
+  repeated LogicalNetwork network_info_vec = 5;
+
+  // Information about the storage fabric.
+  optional ClusteringSoftware clustering_software = 6;
+
+  // Info about the management software to which the cluster is associated.
+  optional ManagementServer management_server = 7;
+
+  repeated LibraryShare library_shares = 8;
+}
+
+message ClusterCollection {
+  // Unique identifier for the cluster collection.
+  optional string id = 1;
+
+  // Display name for the cluster collection.
+  optional string name = 2;
+
+  // Members of the cluster collection.
+  repeated Cluster cluster_vec = 3;
+}
+
+message LogicalNetwork {
+  // Network ID.
+  optional string id = 1;
+
+  // Network name.
+  optional string name = 2;
+}
+
+message LibraryShare {
+  optional string name = 1;
+  optional string path = 2;
+  optional string server = 3;
+}
+
+message LogicalStorage {
+  enum Kind {
+    kUnknown = 0;
+    kEsxDatastore = 1;
+    kNutanixContainer = 2;
+    kHypervStorage = 3;
+  }
+
+  // Storage ID.
+  optional string id = 1;
+
+  // Storage name.
+  optional string name = 2;
+
+  // Kind of logical storage.
+  optional Kind kind = 4;
+
+  // Storage type. E.g. for checking if 'vsan'.
+  optional string type = 3;
+}

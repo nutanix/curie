@@ -1,0 +1,113 @@
+name: cluster_power_cycle
+
+display_name: "Cluster Power Cycle"
+
+summary: Impact of powering off the entire cluster
+
+description: |
+  <strong>Test Objectives</strong>
+  <br /><br />
+  This test is designed to show the effects of powering off all nodes in the
+  cluster while under load. After the nodes come back online, the workload
+  should resume.
+  <br /><br />
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the workload VM on all nodes.</li>
+    <li>Pre-fill the VMs with data.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the workload.</li>
+    <li>Wait 30 minutes while workload runs.</li>
+    <li>Simultaneously power off every node in the cluster.</li>
+    <li>Simultaneously power on every node in the cluster.</li>
+    <li>Restart the workload with a runtime of 30 minutes.</li>
+  </ol>
+  <br /><br />
+  This test requires n DHCP-issued IP addresses for workload VMs where n is the
+  number of nodes in the target cluster.
+
+tags:
+  - test
+  - experimental
+  - availability
+  - data loss
+
+estimated_runtime: 6000
+
+vms:
+  - Group 0:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      count_per_node: 1
+
+workloads:
+  - Random Write:
+      vm_group: Group 0
+      config_file: write.fio
+  - I/O Verification:
+      vm_group: Group 0
+      config_file: write.fio
+#  - Verification:
+#      vm_group: Group 0
+#      config_file: wip_verify.fio
+
+results:
+  - Random Write IOPS:
+      workload_name: Random Write
+      result_type: iops
+#  - Verification IOPS:
+#      workload_name: Verification
+#      result_type: iops
+  - Fake Verification IOPS:
+      workload_name: I/O Verification
+      result_type: iops
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: Group 0
+  - vm_group.PowerOn:
+      vm_group_name: Group 0
+  - workload.PrefillRun:
+      workload_name: Random Write
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: Random Write
+      runtime_secs: 3600
+      async: True
+  - test.Wait:
+      duration_secs: 1800
+  - nodes.PowerOff:
+      nodes: all
+  - nodes.PowerOn:
+      nodes: all
+  - vm_group.PowerOn:
+      vm_group_name: Group 0
+      annotate: True
+# TODO(ryan.hardin): Read data and verify integrity.
+#  - workload.Start:
+#      workload_name: Verification
+#      runtime_secs: null
+#      annotate: True
+  - workload.Start:
+      workload_name: I/O Verification
+      runtime_secs: 1800
+
+teardown:
+  - cluster.CleanUp: {}

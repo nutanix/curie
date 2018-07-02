@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+*.class
+
+# Distribution / packaging
+/build
+/builds
+/dist
+*egg-info*
+.eggs/
+
+# Unit test / coverage reports
+.coverage
+.coverage.*
+.htmlcov_unit
+tests/output/
+tests/.last_test_id
+tests/test.cfg
+
+# Sphinx documentation
+doc/_build/
+
+# Lex/Yacc
+curie/parser.out
+curie/parsetab.py
+
+# Environments
+.env
+.DS_Store
+
+# IDE / Editors
+.idea
+.vscode
+.pydevproject
+*.swp
+
+# MISC
+tags
+TAGS
+Makefile.custom
+CMakeLists.txt.custom
+*.iml
+*.bak*
+.project
+.classpath
+.cproject
+cscope.files
+cscope.out
+cscope.*.out
+cscope.out.*
+*~
+*#*
+.settings
+.*_marker*

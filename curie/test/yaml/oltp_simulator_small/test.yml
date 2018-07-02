@@ -1,0 +1,119 @@
+name: oltp_simulator_small
+
+display_name: "OLTP Simulator: Small"
+
+summary: Sustained, fixed-rate performance with OLTP database workload
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to demonstrate the running of an OLTP workload on
+  the cluster with the desired working set size and workload intensity. Two
+  variations are available:
+  <ol>
+    <li>
+      Small:
+      <ul class="indented">
+        <li>DB: 4000 IOPS with 112 GB working set per VM</li>
+        <li>DB Log: 200 IOPS with 4 GB working set per VM</li>
+      </ul>
+    </li>
+    <li>
+      Medium:
+      <ul class="indented">
+        <li>DB: 6000 IOPS with 560 GB working set per VM</li>
+        <li>DB Log: 300 IOPS with 8 GB working set per VM</li>
+      </ul>
+    </li>
+  </ol>
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB VM template.</li>
+    <li>Clone:</li>
+      <ul class="indented">
+        <li>Small: Clone n-1 OLTP DB VMs, where n is the number of nodes in the
+            cluster.</li>
+      </ul>
+      <ul class="indented">
+        <li>Medium: Clone n/2 OLTP DB VMs, where n is the number of nodes in
+            the cluster.</li>
+      </ul>
+    <li>Pre-fill the OLTP DB VM(s).</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload.</li>
+    <li>Run for 1 hour.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs per OLTP VM</li>
+    <li>RAM: 4 GB per OLTP VM</li>
+    <li>Cluster Storage: <ul class="indented">
+        <li>Small: 116 GB per OLTP VM</li>
+        <li>Medium: 568 GB per OLTP VM</li>
+    </ul></li>
+    <li>IP Addresses: 1 per OLTP VM</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+
+tags:
+  - performance
+
+estimated_runtime: 7200
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      nodes: ":n-1"
+      count_per_node: 1
+
+workloads:
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+
+results:
+  - OLTP IOPS:
+      vm_group: OLTP
+      result_type: iops
+      report_group: performance
+      report_metrics:
+        - Variability
+  - I/O Latency:
+      vm_group: OLTP
+      result_type: latency
+      report_group: performance
+      report_metrics:
+        - Median
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - workload.PrefillRun:
+      workload_name: OLTP
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 3600
+      stagger_secs: 900
+
+teardown:
+  - cluster.CleanUp: {}

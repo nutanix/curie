@@ -1,0 +1,183 @@
+/*
+ * Copyright (c) 2015 Nutanix Inc. All rights reserved.
+ */
+
+syntax = "proto2";
+
+package nutanix.curie;
+
+import "curie_extensions.proto";
+import "curie_server_state.proto";
+import "curie_test.proto";
+import "curie_types.proto";
+
+option py_generic_services = true;
+
+//-----------------------------------------------------------------------------
+
+message ScenarioValidationInfo {
+  required string path = 1;
+  required bool is_valid = 2;
+  repeated string messages = 3;
+}
+
+//-----------------------------------------------------------------------------
+
+message ServerStatusGetArg {
+  // Whether to include persistent state stored in CurieServerState.
+  optional bool include_persistent_state = 1 [default = false];
+}
+
+message ServerStatusGetRet {
+  // Representation of the current overall state of the server.
+  optional ServerStatus status = 1;
+
+  // Set only if 'include_persistent_state' is set in the request.
+  optional CurieServerState state = 2;
+}
+
+message TestValidateArg {
+  repeated string paths = 1;
+}
+
+message TestValidateRet {
+  repeated ScenarioValidationInfo validation_info = 1;
+}
+
+message TestCatalogArg {
+}
+
+message TestCatalogRet {
+  // List of metadata information for tests.
+  repeated CurieTestMetadata test_metadata_list = 1;
+}
+
+message TestStatusArg {
+  // Test ID for the test to return status for.
+  required int64 test_id = 1;
+}
+
+message TestStatusRet {
+  // Test information.
+  required CurieTestInfo test_info = 1;
+
+  // Test results.
+  repeated CurieTestResult test_results = 2;
+}
+
+message DiscoverClustersV2Arg {
+  optional ManagementServer mgmt_server = 1;
+}
+
+message DiscoverClustersV2Ret {
+  message ClusterInventory {
+    repeated ClusterCollection cluster_collection_vec = 1;
+  }
+  // Set of clusters that are being managed by the management server specified
+  // in the corresponding request.
+  required ClusterInventory cluster_inventory = 1;
+}
+
+message DiscoverNodesV2Arg {
+  // Management server on which 'cluster_collection' exists.
+  optional ManagementServer mgmt_server = 1;
+
+  // Cluster collection for which to discover cluster nodes.
+  optional ClusterCollection cluster_collection = 2;
+
+  // If provided, known oob_info (i.e. username, password, OoB type) to apply
+  // to oob_info per-node.
+  optional OutOfBandInterface oob_info = 3;
+}
+
+message DiscoverNodesV2Ret {
+  message NodeCollection {
+    // ID of cluster to which these nodes belong.
+    optional string cluster_id = 1;
+
+    // Collection of nodes belonging to a cluster.
+    repeated ClusterNode node_vec = 2;
+  }
+
+  // The collection of nodes discovered for each of the provided clusters.
+  repeated NodeCollection node_collection_vec = 2;
+}
+
+message UpdateAndValidateClusterArg {
+  // Cluster whose data to update and validate.
+  optional CurieSettings.Cluster cluster = 1;
+}
+
+message UpdateAndValidateClusterRet {
+  // Updated version of the input cluster.
+  optional CurieSettings.Cluster cluster = 1;
+
+  // Optional details about the vaildation, e.g. errors, fields which were
+  // updated, etc.
+  message ValidationMessage {
+    enum Type {
+      kUnknown = 1;
+      // The provided value changed after update.
+      kUpdated = 2;
+      // Validation did not fail, but a possible issue was detected.
+      kWarning = 3;
+      // Validation failed due to this error.
+      kError = 4;
+    }
+
+    optional Type type = 1;
+    optional string msg = 2;
+    optional string details = 3;
+  }
+
+  // Optional details regarding updating and validating the provided data.
+  repeated ValidationMessage validation_message_vec = 3;
+}
+
+//-----------------------------------------------------------------------------
+
+service CurieRpcSvc {
+  option (nutanix.curie.default_timeout_msecs) = 500;
+  option (nutanix.curie.default_max_retries) = 0;
+
+  // Get the curie server's current status.
+  rpc ServerStatusGet(ServerStatusGetArg) returns(ServerStatusGetRet);
+
+  // Validate Scenarios defined at a path in the file system.
+  rpc TestValidate(TestValidateArg) returns(TestValidateRet) {
+    // 10 seconds.
+    option (nutanix.curie.timeout_msecs) = 10000;
+  };
+
+  // Return a catalog of all tests that can be run by the server.
+  rpc TestCatalog(TestCatalogArg) returns(TestCatalogRet);
+
+  // Return the status of a test.
+  rpc TestStatus(TestStatusArg) returns(TestStatusRet) {
+    option (nutanix.curie.timeout_msecs) = 1000;
+  }
+
+  // Discover configuration data for clusters using V2 API.
+  rpc DiscoverClustersV2(DiscoverClustersV2Arg)
+    returns(DiscoverClustersV2Ret) {
+    // 5 minutes.
+    option (nutanix.curie.timeout_msecs) = 300000;
+  };
+
+  // Discover node data for nodes associated with a given cluster using V2 API.
+  rpc DiscoverNodesV2(DiscoverNodesV2Arg)
+    returns(DiscoverNodesV2Ret) {
+    // 5 minutes.
+    option (nutanix.curie.timeout_msecs) = 300000;
+  };
+
+  // Perform any final updates to the provided CurieSettings.cluster, and
+  // then validate as necessary (e.g. passwords, etc.).
+  rpc UpdateAndValidateCluster(UpdateAndValidateClusterArg)
+    returns(UpdateAndValidateClusterRet) {
+    // 5 minutes.
+    option (nutanix.curie.timeout_msecs) = 300000;
+  };
+}
+
+//-----------------------------------------------------------------------------

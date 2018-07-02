@@ -1,0 +1,20 @@
+[curie_test_config]
+## Uncomment and fill these values in with your cluster's information
+# vcenter_host:
+# vcenter_user:
+# vcenter_password:
+# vcenter_datacenter_name:
+# vcenter_cluster_name:
+# vcenter_datastore_name:
+# prism_host:
+# prism_user:
+# prism_password:
+# curie_vmdk_goldimages_dir:
+
+## space separated list of host ids. Typically the host ips.
+# node_ids:
+
+## space separated list of ip addresses or host names
+# oob_ip_addresses:
+# oob_username:
+# oob_password:

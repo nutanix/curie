@@ -1,0 +1,37 @@
+name: Dummy Test (YAML)
+
+summary:
+  This is a dummy test - just used for unit tests
+
+description: |
+  <strong>Test Objectives</strong>
+  <br/><br/>
+  This test clones a VM and powers it on.
+
+tags:
+  - unit_testing
+
+estimated_runtime: 600
+
+vms:
+  - group_0:
+      template: unix-fio-db
+      count_per_node: 1
+
+workloads:
+  - dummy:
+      vm_group: group_0
+      config_file: random_read.fio
+
+results:
+  - dummy_iops:
+      workload_name: dummy
+      result_type: iops
+
+setup:
+  - vm_group.CloneFromTemplate:
+      vm_group_name: group_0
+
+run:
+  - vm_group.PowerOn:
+      vm_group_name: group_0

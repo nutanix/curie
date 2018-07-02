@@ -1,0 +1,16 @@
+compratio=2
+dedupsets=4
+swat=(xx,yy)
+sd=sd1,lun=/dev/sdb,size=2G,openflags=o_direct,threads=20
+sd=sd2,lun=/dev/sdc,size=2G,openflags=o_direct,threads=20
+sd=sd3,lun=/dev/sdd,size=28G,openflags=o_direct,threads=20
+sd=sd4,lun=/dev/sde,size=28G,openflags=o_direct,threads=20
+sd=sd5,lun=/dev/sdf,size=28G,openflags=o_direct,threads=20
+sd=sd6,lun=/dev/sdg,size=28G,openflags=o_direct,threads=20
+wd=wd0,sd=sd1,xfersize=1m,rdpct=0,seekpct=eof
+wd=wd1,sd=sd2,xfersize=1m,rdpct=0,seekpct=eof
+wd=wd2,sd=sd3,xfersize=1m,rdpct=0,seekpct=eof
+wd=wd3,sd=sd4,xfersize=1m,rdpct=0,seekpct=eof
+wd=wd4,sd=sd5,xfersize=1m,rdpct=0,seekpct=eof
+wd=wd5,sd=sd6,xfersize=1m,rdpct=0,seekpct=eof
+rd=rd0,wd=wd*,interval=5,elapsed=86400,iorate=max

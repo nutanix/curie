@@ -1,0 +1,49 @@
+syntax = "proto2";
+
+//
+// Copyright (c) 2015 Nutanix Inc. All rights reserved.
+//
+
+package nutanix.curie;
+
+import "google/protobuf/descriptor.proto";
+
+extend google.protobuf.ServiceOptions {
+
+  // NB: Starting above 50000 to keep this from conflicting with the package
+  // "nutanix.net".
+
+  // Global default for the base RPC timeout in miliseconds.
+  optional int32 default_timeout_msecs = 51000 [default = 1000];
+
+  // Global default for the maximum number of RPC retries. RPC retries use
+  // exponential backoff.
+  optional int32 default_max_retries = 51001 [default = 0];
+}
+
+extend google.protobuf.MethodOptions {
+  // Base RPC timeout in milliseconds.
+  optional int32 timeout_msecs = 61000;
+
+  // Maximum number of retries for the RPC. RPC retries use exponential
+  // backoff.
+  optional int32 max_retries = 61001;
+}
+
+extend google.protobuf.FieldOptions {
+  // If true, field is sensitive. It is expected that provided value will be
+  // encrypted. The (encrypted) value will also be redacted whenever
+  // formatting the protobuf for human-friendly text output.
+  //
+  // Encrypted fields are expected to be base64 encoded ciphertext
+  // corresponding to the encryption scheme documented on the
+  // 'SetEncryptionKey' RPC.
+  //
+  // To allow Curie to decrypt fields internally as necessary, the key should
+  // be provided via a separate call to the 'SetEncryptionKey' RPC.
+  //
+  // See also the comments regarding 'SetEncryptionKey' in
+  // curie_interface.proto for more details on encryption protocols used,
+  // key requirements, etc.
+  optional bool encrypted = 80000;
+}

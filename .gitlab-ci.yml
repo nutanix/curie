@@ -1,0 +1,182 @@
+include:
+  - '.gitlab-ci-integration-master.yml'
+  - '.gitlab-ci-integration-branches.yml'
+
+stages:
+  - environment_build
+  - build
+  - unit_test
+  - unit_test_coverage_renderer
+  - deploy
+  - integration_test
+  - unit_and_integration_test_coverage_renderer
+  - trigger
+
+variables:
+  IMAGE_NAME: $CI_REGISTRY_IMAGE:${CI_COMMIT_REF_NAME}
+
+###############
+# Environment #
+###############
+
+curie_container_build:
+  image: docker:17.06.0-ce
+  stage: environment_build
+  tags:
+    - docker
+    - privileged
+  script:
+    - docker --version
+    - docker build --pull -t $IMAGE_NAME .
+    - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN $CI_REGISTRY
+    - docker push $IMAGE_NAME
+
+#########
+# Build #
+#########
+
+docs:
+  image: $IMAGE_NAME
+  stage: build
+  tags:
+    - docker
+  script:
+    - pip install -e .
+    - cd doc
+    - sphinx-apidoc -f -o apidoc ../curie
+    - make html
+  when: always
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - doc/_build/html
+
+sdist:
+  image: $IMAGE_NAME
+  stage: build
+  tags:
+    - docker
+    - privileged
+  script:
+    - python setup.py sdist
+    - mv dist/* .
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - curie*.tar.gz
+
+bdist_egg:
+  image: $IMAGE_NAME
+  stage: build
+  tags:
+    - docker
+    - privileged
+  script:
+    - python setup.py bdist_egg
+    - mv dist/* .
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - curie*.egg
+
+pages:
+  stage: deploy
+  script:
+    - mkdir public
+    - cp -R doc/_build/html/* public/
+  artifacts:
+    paths:
+    - public
+  only:
+    - master
+  when: always
+  dependencies:
+    - docs
+
+#############
+# Unit Test #
+#############
+
+pylint:
+  image: $IMAGE_NAME
+  stage: unit_test
+  tags:
+    - docker
+    - privileged
+  allow_failure: true
+  script:
+    - make pylint
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+     - curie
+
+curie.pytest.run_unit.py:
+  image: $IMAGE_NAME
+  stage: unit_test
+  tags:
+    - docker
+    - privileged
+  script:
+    - pip install --src curie -e .
+    - make test
+  artifacts:
+    when: always
+    expire_in: 1 week
+    untracked: true
+    paths:
+    - .coverage*
+
+######################
+# Unit Test Coverage #
+######################
+
+curie_unit_coverage:
+  image: $IMAGE_NAME
+  stage: unit_test_coverage_renderer
+  tags:
+    - docker
+    - privileged
+  script:
+    - make coverage
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - .htmlcov*
+  when: always
+
+####################
+# Integration Test #
+####################
+
+# This stage is imported from .gitlab-ci-integration-*.yml
+
+#############################
+# Integration Test Coverage #
+#############################
+
+curie_unit_and_integration_coverage:
+  image: $IMAGE_NAME
+  stage: unit_and_integration_test_coverage_renderer
+  tags:
+    - docker
+    - privileged
+  only:
+    - branches@xray/charon
+    - master@xray/charon
+  script:
+    - coverage combine
+    - coverage html
+        --title "Combined Unit and Integration Test Coverage"
+        -d .htmlcov_unit_and_integration
+    - coverage report
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - .htmlcov*
+  when: manual

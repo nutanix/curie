@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+# -*- python -*-
+#
+# Copyright (c) 2015 Nutanix Inc. All rights reserved.
+#
+
+# For packaging, must be first import.
+try:
+  import env
+except ImportError:
+  pass
+
+import os
+import pwd
+import subprocess
+import sys
+
+def main(cmd_id, cmd_dir, cmd):
+  os.setpgid(0, 0)
+  stdout_file = open(os.path.join(cmd_dir, "stdout.txt"), "w")
+  stderr_file = open(os.path.join(cmd_dir, "stderr.txt"), "w")
+  proc = subprocess.Popen(cmd,
+                          shell=True,
+                          stdout=stdout_file,
+                          stderr=stderr_file,
+                          close_fds=True)
+  exit_status = proc.wait()
+  stdout_file.close()
+  stderr_file.close()
+  sys.exit(exit_status)
+
+if __name__ == "__main__":
+  if len(sys.argv) < 5:
+    print "Usage: curie_cmd_wrapper cmd_id cmd_dir cmd_uid cmd [arg0] ..."
+    sys.exit(3)
+  cmd_id = sys.argv[1]
+  cmd_dir = sys.argv[2]
+  cmd_uid = int(sys.argv[3])
+  cmd_pwd_entry = pwd.getpwuid(cmd_uid)
+  uid = os.getuid()
+  if uid != cmd_uid:
+    if uid != 0:
+      sys.stderr.write("Must be root to run commands as other users\n")
+      sys.exit(2)
+    os.setgid(cmd_pwd_entry.pw_gid)
+    os.setuid(cmd_pwd_entry.pw_uid)
+  os.chdir(cmd_pwd_entry.pw_dir)
+  cmd = " ".join(sys.argv[4:])
+  main(cmd_id, cmd_dir, cmd)

@@ -1,0 +1,40 @@
+#!/usr/bin/env python
+#
+# Copyright (c) 2017 Nutanix Inc. All rights reserved.
+#
+import os
+import sys
+
+
+def _handle_generate_parsetab():
+  from curie.punit_parser import PUnit
+  # Force yacc to generate 'parsetab.py'
+  PUnit.from_string("decibel")
+
+
+def _handle_generate_mof_enum_defs():
+  from curie.ova_util import _generate_mof_enum_defs, _get_mof_json_path
+  _generate_mof_enum_defs(_get_mof_json_path())
+
+
+_HANDLERS = {
+  "parsetab.py": _handle_generate_parsetab,
+  "mof_enum_defs.json": _handle_generate_mof_enum_defs
+}
+
+
+if __name__ == "__main__":
+  curie_py_src = os.path.join(os.path.realpath(
+    os.path.join(os.path.dirname(sys.argv[0]), "..")), "curie")
+
+  if len(sys.argv) == 1:
+    sys.exit(0)
+
+  for target in sys.argv[1:]:
+    handler = _HANDLERS.get(os.path.relpath(target, curie_py_src))
+    if handler is None:
+      sys.stderr.write("No method to generate %s\n" % target)
+      sys.stderr.flush()
+      sys.exit(1)
+
+    handler()

@@ -1,0 +1,161 @@
+name: hci_workflow_linked
+
+display_name: "HCI Workflow: Linked Clones"
+
+summary:
+  A day in the life of a hyperconverged system with mixed workloads (OLTP+VDI)
+
+description: |
+  <strong>Test Objectives</strong><br />
+  This test is designed to demonstrate a system's ability to handle
+  heterogeneous workloads across the nodes in a cluster. This scenario runs a
+  critical OLTP DB workload on one node and 100 VMs executing VDI-like
+  workloads on each of the other nodes. The objective is to show that the OLTP
+  DB workload is not impacted while the VDI VMs perform their activities.
+  <br /><br />
+  <Strong>Setup</strong>
+  <ol>
+    <li>Deploy the OLTP DB VM and VDI base VMs onto the cluster.</li>
+    <li>Pre-fill the OLTP DB and base VDI VMs with data.</li>
+    <li>Shutdown the base VDI VM.</li>
+    <li>
+      The base VDI VM is cloned 100 times per node in the cluster except for
+      the node with the DB VM. Cloning method is either default or using linked
+      clones.
+    </li>
+    <li>The OLTP DB is warmed up for 1 hour by running the OLTP workload.</li>
+  </ol>
+  <strong>Measurement</strong>
+  <ol>
+    <li>Start the OLTP workload.</li>
+    <li>Wait for 5 minutes.</li>
+    <li>
+      Boot the VDI VMs, simulating a bootstorm. At any given point in time, a
+      maximum of 100 VDI VMs will be powered on and booting. A VDI VM is
+      considered booted once it has an IP address.
+    </li>
+    <li>Wait for 5 minutes after the bootstorm completes.</li>
+    <li>Start the VDI workload on all the VMs as quickly as possible.</li>
+    <li>Allow VDI workload to run for 20 minutes.</li>
+    <li>Wait for 10 more minutes.</li>
+  </ol>
+  <strong>Test Requirements</strong>
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs on node 1, 200 on every other node</li>
+    <li>RAM: 4 GB on node 1, 200 on every other node</li>
+    <li>Cluster Storage: 116GB + up to 1TB per node beyond the first (up to
+        3116 GB for a four-node cluster depending on cloning method)</li>
+    <li>IP Addresses: 100 * (n - 1) + 1 (301 for four nodes)</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+
+tags:
+  - mixed workloads
+  - performance
+
+estimated_runtime: 27000
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      count_per_cluster: 1
+      nodes: "0"
+  - VDI:
+      template: ubuntu1604
+      vcpus: 2
+      ram_mb: 2048
+      data_disks:
+        count: 1
+        size: 16
+      count_per_cluster: 1
+      nodes: "1:"
+
+workloads:
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - OLTP Warmup:
+      vm_group: OLTP
+      config_file: oltp.fio
+  - VDI:
+      vm_group: VDI
+      config_file: vdi.fio
+      iogen_params:
+        reporting_interval: 10
+
+results:
+  - OLTP IOPS:
+      workload_name: OLTP
+      result_type: iops
+      report_group: performance
+      report_metrics:
+        - Variability
+  - VDI IOPS:
+      workload_name: VDI
+      result_type: iops
+      aggregate: sum
+      report_group: performance
+      report_metrics:
+        - Variability
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.CloneFromTemplate:
+      vm_group_name: VDI
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: VDI
+  - workload.PrefillRun:
+      workload_name: OLTP
+  - workload.PrefillRun:
+      workload_name: VDI
+  - vm_group.PowerOff:
+      vm_group_name: VDI
+  - vm_group.Grow:
+      vm_group_name: VDI
+      count_per_node: 100
+      linked_clone: True
+  - workload.Start:
+      workload_name: OLTP Warmup
+      runtime_secs: 3600
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 18000
+      async: True
+  - test.Wait:
+      duration_secs: 300
+  - vm_group.PowerOn:
+      vm_group_name: VDI
+      annotate: True
+  - test.Wait:
+      duration_secs: 300
+  - workload.Start:
+      workload_name: VDI
+      runtime_secs: 1200
+      annotate: True
+  - test.Wait:
+      duration_secs: 600
+  - workload.Stop:
+      workload_name: OLTP
+
+teardown:
+  - cluster.CleanUp: {}
