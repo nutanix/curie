@@ -1,0 +1,123 @@
+name: oltp_simulator_small
+
+display_name: "OLTP Simulator: Small"
+
+summary: Sustained, fixed-rate performance with OLTP database workload
+
+description: |
+  <strong>What's this test about?</strong><br/>
+  This test examines the infrastructure's ability to handle OLTP workloads
+  which consist of multiple OLTP VMs running at various intensities.
+  <br/><br/>
+  <img src='data:image/png;base64,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'>
+  <br/><br/>
+  <strong>How to measure the effectiveness of data transfer?</strong><br/>
+  Performance is evaluated by measuring the IOPS and the I/O latency of the OLTP database workload.
+  With a given number of database VMs generating load at a fixed intensity,
+  the IOPS should reach and then stay at a steady level.
+  The I/O latency should be consistently low.
+  <br/><br/>
+  <strong>How is the test run?</strong><br/>
+  Setup
+  <ol>
+    <li>Deploy the OLTP DB VM template.</li>
+    <li>Clone:</li>
+      <ul class="indented">
+        <li>Small: Clone n-1 OLTP DB VMs, where n is the number of nodes in the
+            cluster.</li>
+      </ul>
+      <ul class="indented">
+        <li>Medium: Clone n/2 OLTP DB VMs, where n is the number of nodes in
+            the cluster.</li>
+      </ul>
+    <li>Pre-fill the OLTP DB VM(s).</li>
+  </ol>
+  Measurement
+  <ol>
+    <li>Start the OLTP workload.</li>
+    <li>Run for 1 hour.</li>
+  </ol>
+  Test Requirements
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs per OLTP VM</li>
+    <li>RAM: 4 GB per OLTP VM</li>
+    <li>Cluster Storage: <ul class="indented">
+        <li>Small: 116 GB per OLTP VM</li>
+        <li>Medium: 568 GB per OLTP VM</li>
+    </ul></li>
+    <li>IP Addresses: 1 per OLTP VM</li>
+  </ul>
+  Note: This test scales with the number of nodes.
+
+tags:
+  - performance
+
+estimated_runtime: 7200
+
+vars:
+  iops:
+    default: 4200
+
+vms:
+  - OLTP:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 6
+        size: 32
+      nodes: ":n-1"
+      count_per_node: 1
+
+workloads:
+  - OLTP:
+      vm_group: OLTP
+      config_file: oltp.fio
+
+results:
+  - OLTP IOPS:
+      vm_group: OLTP
+      result_type: iops
+      result_expected_value: "{{ iops }}"
+      result_value_bands:
+        - name: 95%
+          upper: "{{ iops + 1.96 * iops ** (1/2) }}"
+          lower: "{{ iops - 1.96 * iops ** (1/2) }}"
+      result_hint: "Consistently achieve {{ iops }} IOPS per VM."
+      report_group: performance
+      report_metrics:
+        - Variability
+  - I/O Latency:
+      vm_group: OLTP
+      result_type: latency
+      result_hint: "Lower latency indicates better performance."
+      report_group: performance
+      report_metrics:
+        - Median
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: OLTP
+  - vm_group.PowerOn:
+      vm_group_name: OLTP
+  - workload.PrefillRun:
+      workload_name: OLTP
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: OLTP
+      runtime_secs: 3600
+      stagger_secs: 900
+
+teardown:
+  - cluster.CleanUp: {}

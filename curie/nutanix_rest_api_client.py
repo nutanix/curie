@@ -383,13 +383,13 @@ class NutanixRestApiClient(object):
     return cls(*args, **kwargs)
 
   def __init__(self, host, api_user, api_password, timeout_secs=None):
+    self.host = host
     # User name for API requests.
     self.__api_user = api_user
 
     # Password for API requests.
     self.__api_password = api_password
 
-    self.__host = host
 
     # Host-parameterized template for URL request root.
     self.__host_tmpl = "https://{host}:9440"
@@ -431,7 +431,7 @@ class NutanixRestApiClient(object):
 
   def get_cluster_timestamp_usecs(self):
     # NB: We don't want or need to authenticate for this.
-    request_url = "%s%s" % (self.__host_tmpl.format(host=self.__host),
+    request_url = "%s%s" % (self.__host_tmpl.format(host=self.host),
                             self.__services_url)
     resp = requests.head(request_url, verify=False)
     return int(time.strftime("%s", time.strptime(
@@ -1353,6 +1353,16 @@ class NutanixRestApiClient(object):
                        (self.__base_mgmt_url, vm_id), clone_spec)["taskUuid"]
 
   @nutanix_rest_api_method
+  def vdisk_clone(self, source_paths, destination_paths, overwrite=False):
+    post_data = [{
+      "absoluteSourceFilePath": source_path,
+      "absoluteDestinationFilePath": destination_path,
+      "destinationOverwriteGuarded": not overwrite
+    } for source_path, destination_path in zip(source_paths, destination_paths)]
+    return self.__post("%s/vdisks/snapshots/nfs" % self.__base_url,
+                       post_data)
+
+  @nutanix_rest_api_method
   def vms_create(self, vm_desc, nic_specs):
     log.info("Creating VM '%s' with %s MB RAM and %s vCPUs",
              vm_desc.name, vm_desc.memory_mb, vm_desc.num_vcpus)
@@ -1879,13 +1889,14 @@ class NutanixRestApiClient(object):
     # Determine if the target is a 5.5 cluster and then add required header
     version = PrismAPIVersions.get_aos_short_version(
       self.get_nutanix_metadata().version)
-    if tuple(map(int, version.split('.'))) >= (5, 5):
+    nos_version = tuple(map(int, version.split('.')))
+    if (5, 5) <= nos_version < (5, 8):
       log.debug("Cluster has the version %s. Checking if registered to a "
                 "Prism Central", version)
       pc_uuid = self.get_pc_uuid()
       if pc_uuid is not None:
         log.debug("Cluster is registered to PC %s", pc_uuid)
-        if tuple(map(int, version.split('.'))) < (5, 5, 0, 2):
+        if nos_version < (5, 5, 0, 2):
           message = ("Cluster is running a 5.5 version which is incompatible "
                      "with X-Ray when connected to Prism Central. Please "
                      "upgrade AOS to 5.5.0.2 or newer, or disconnect Prism "
@@ -2012,7 +2023,7 @@ class NutanixRestApiClient(object):
                                    return_raw_response_obj=True,
                                    data=json.dumps(
                                      {"value": json.dumps(rpc_body)}),
-                                   timeout=60)
+                                   timeout=120)
     # 'raw_ret' is expected to be a response with body containing a map with a
     # single key "value" mapping to a serialized JSON response with key
     # ".return".
@@ -2079,7 +2090,7 @@ class NutanixRestApiClient(object):
     """
     request_func = getattr(self.__session, request_type.lower(), None)
     CHECK(request_func)
-    request_url = "%s%s" % (self.__host_tmpl.format(host=self.__host), url)
+    request_url = "%s%s" % (self.__host_tmpl.format(host=self.host), url)
 
     log.debug("%s %s %r", request_type, url, request_kwargs)
     # Number of failed calls. This excludes cases where the backend explicitly

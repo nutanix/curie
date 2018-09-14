@@ -1,6 +1,6 @@
-#include:
-#  - '.gitlab-ci-integration-master.yml'
-#  - '.gitlab-ci-integration-branches.yml'
+include:
+  - '.gitlab-ci-integration-master.yml'
+  - '.gitlab-ci-integration-branches.yml'
 
 stages:
   - environment_build
@@ -91,6 +91,7 @@ pages:
     - public
   only:
     - master
+    - tags
   when: always
   dependencies:
     - docs
@@ -130,9 +131,9 @@ curie.pytest.run_unit.py:
     paths:
     - .coverage*
 
-######################
-# Unit Test Coverage #
-######################
+##################################
+# Unit Test Coverage and Climate #
+##################################
 
 curie_unit_coverage:
   image: $IMAGE_NAME
@@ -149,11 +150,35 @@ curie_unit_coverage:
       - .htmlcov*
   when: always
 
+code_quality:
+  image: docker:stable
+  variables:
+    DOCKER_DRIVER: overlay2
+  allow_failure: true
+  services:
+    - docker:stable-dind
+  stage: unit_test_coverage_renderer
+  tags:
+    - docker
+    - privileged
+  script:
+    - export SP_VERSION=$(echo "$CI_SERVER_VERSION" | sed 's/^\([0-9]*\)\.\([0-9]*\).*/\1-\2-stable/')
+    - docker run
+        --env SOURCE_CODE="$PWD"
+        --volume "$PWD":/code
+        --volume /var/run/docker.sock:/var/run/docker.sock
+        "registry.gitlab.com/gitlab-org/security-products/codequality:$SP_VERSION" /code
+  dependencies: []
+  artifacts:
+    paths: [gl-code-quality-report.json]
+
 ####################
 # Integration Test #
 ####################
 
 # This stage is imported from .gitlab-ci-integration-*.yml
+
+
 
 #############################
 # Integration Test Coverage #

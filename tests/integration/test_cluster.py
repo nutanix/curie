@@ -15,7 +15,7 @@ import unittest
 import gflags
 
 from curie.metrics_util import MetricsUtil
-from curie.test.scenario_util import ScenarioUtil
+from curie.scenario_util import ScenarioUtil
 from curie.testing import environment, util
 
 log = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 class TestCluster(unittest.TestCase):
   def setUp(self):
     self.cluster = util.cluster_from_json(gflags.FLAGS.cluster_config_path)
+    self.cluster.update_metadata(False)
 
   def tearDown(self):
     pass

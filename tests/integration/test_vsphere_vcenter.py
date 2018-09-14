@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 class TestVsphereVcenter(unittest.TestCase):
   def setUp(self):
     self.cluster = util.cluster_from_json(gflags.FLAGS.cluster_config_path)
+    self.cluster.update_metadata(False)
     assert isinstance(self.cluster, VsphereCluster), \
            "This test must run on a vCenter cluster"
     self.vcenter = self.cluster._open_vcenter_connection()

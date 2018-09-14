@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='curie_test.proto',
   package='nutanix.curie',
   syntax='proto2',
-  serialized_pb=_b('\n\x10\x63urie_test.proto\x12\rnutanix.curie\"\xea\x01\n\x11\x43urieTestMetadata\x12\x11\n\ttest_name\x18\x01 \x02(\t\x12\x19\n\x11test_display_name\x18\x02 \x02(\t\x12\x14\n\x0ctest_summary\x18\x03 \x02(\t\x12\x18\n\x10test_description\x18\x04 \x02(\t\x12\x1e\n\x16\x65stimated_runtime_secs\x18\x07 \x01(\x03\x12\x11\n\ttest_tags\x18\x08 \x03(\t\x12\x11\n\tvars_json\x18\t \x01(\t\x12\x18\n\x10source_directory\x18\n \x01(\t\x12\x17\n\x08readonly\x18\x0b \x01(\x08:\x05\x66\x61lse\"\xc5\x01\n\x0f\x43urieTestStatus\"\xb1\x01\n\x04Type\x12\x0f\n\x0bkNotStarted\x10\x00\x12\x0b\n\x07kQueued\x10\x00\x12\x0e\n\nkExecuting\x10\x01\x12\x0c\n\x08kRunning\x10\x01\x12\r\n\tkStopping\x10\x02\x12\x0c\n\x08kFailing\x10\x03\x12\x0e\n\nkSucceeded\x10\x04\x12\x0b\n\x07kFailed\x10\x05\x12\x0c\n\x08kStopped\x10\x06\x12\r\n\tkCanceled\x10\x07\x12\x12\n\x0ekInternalError\x10\x08\x1a\x02\x10\x01\"c\n\x0e\x43urieTestPhase\"Q\n\x04Type\x12\r\n\tkPreSetup\x10\x00\x12\x11\n\rkPrecondition\x10\x00\x12\n\n\x06kSetup\x10\x01\x12\x08\n\x04kRun\x10\x02\x12\r\n\tkTeardown\x10\x03\x1a\x02\x10\x01\"\x94\x01\n\x12\x43urieTestStepProto\x12\x31\n\x05phase\x18\x01 \x02(\x0e\x32\".nutanix.curie.CurieTestPhase.Type\x12\x10\n\x08step_num\x18\x02 \x02(\x05\x12\x18\n\x10step_description\x18\x03 \x01(\t\x12\x1f\n\x17step_time_estimate_secs\x18\x06 \x01(\x03\"0\n\x0e\x43urieTestIOGen\"\x1e\n\x04Type\x12\x0c\n\x08kUnknown\x10\x00\x12\x08\n\x04kFio\x10\x01\"A\n\x16\x43urieTestConfiguration\x12\x14\n\x0c\x63luster_name\x18\x01 \x01(\t\x12\x11\n\tvars_json\x18\x02 \x01(\t\"\xe1\x01\n\x0e\x43urieTestState\x12\x0f\n\x07test_id\x18\x01 \x02(\x03\x12\x33\n\x06status\x18\x05 \x02(\x0e\x32#.nutanix.curie.CurieTestStatus.Type\x12:\n\x0f\x63ompleted_steps\x18\x06 \x03(\x0b\x32!.nutanix.curie.CurieTestStepProto\x12:\n\x0fremaining_steps\x18\x07 \x03(\x0b\x32!.nutanix.curie.CurieTestStepProto\x12\x11\n\terror_msg\x18\x08 \x01(\t\"\xee\x0b\n\x0f\x43urieTestResult\x12\x0c\n\x04name\x18\x01 \x02(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x02(\t\x12\r\n\x05group\x18\x03 \x02(\t\x12\x11\n\tresult_id\x18\x04 \x02(\t\x12\x38\n\x08\x64\x61ta_raw\x18\x64 \x01(\x0b\x32&.nutanix.curie.CurieTestResult.DataRaw\x12\x36\n\x07\x64\x61ta_2d\x18\x65 \x01(\x0b\x32%.nutanix.curie.CurieTestResult.Data2D\x1a\x17\n\x07\x44\x61taRaw\x12\x0c\n\x04\x64\x61ta\x18\x01 \x02(\t\x1a\x8a\n\n\x06\x44\x61ta2D\x12L\n\x0fpickled_2d_data\x18\x01 \x01(\x0b\x32\x33.nutanix.curie.CurieTestResult.Data2D.Pickled2DData\x12\x12\n\nplot_x_min\x18\x02 \x01(\x03\x12\x12\n\nplot_x_max\x18\x03 \x01(\x03\x12\x12\n\nplot_y_min\x18\x04 \x01(\x03\x12\x12\n\nplot_y_max\x18\x05 \x01(\x03\x12\x43\n\x0bx_unit_type\x18\x06 \x02(\x0e\x32..nutanix.curie.CurieTestResult.Data2D.UnitType\x12\x43\n\x0by_unit_type\x18\x07 \x02(\x0e\x32..nutanix.curie.CurieTestResult.Data2D.UnitType\x12\x0f\n\x07x_label\x18\x08 \x01(\t\x12\x0f\n\x07y_label\x18\t \x01(\t\x12J\n\x0ereport_metrics\x18\n \x03(\x0e\x32\x32.nutanix.curie.CurieTestResult.Data2D.ReportMetric\x12\x14\n\x0creport_group\x18\x0b \x01(\t\x12H\n\rx_annotations\x18\x64 \x03(\x0b\x32\x31.nutanix.curie.CurieTestResult.Data2D.XAnnotation\x12H\n\ry_annotations\x18\x65 \x03(\x0b\x32\x31.nutanix.curie.CurieTestResult.Data2D.YAnnotation\x12J\n\x0exy_annotations\x18\x66 \x03(\x0b\x32\x32.nutanix.curie.CurieTestResult.Data2D.XYAnnotation\x1a?\n\rPickled2DData\x12\x16\n\x0ex_vals_pickled\x18\x01 \x02(\x0c\x12\x16\n\x0ey_vals_pickled\x18\x02 \x02(\x0c\x1a_\n\x0bXAnnotation\x12\r\n\x05x_val\x18\x01 \x01(\x03\x12\x15\n\ty_val_min\x18\x02 \x01(\x03:\x02-1\x12\x15\n\ty_val_max\x18\x03 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x04 \x02(\t\x1a_\n\x0bYAnnotation\x12\r\n\x05y_val\x18\x01 \x01(\x03\x12\x15\n\tx_val_min\x18\x02 \x01(\x03:\x02-1\x12\x15\n\tx_val_max\x18\x03 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x04 \x02(\t\x1a\x7f\n\x0cXYAnnotation\x12\x15\n\tx_val_min\x18\x01 \x01(\x03:\x02-1\x12\x15\n\tx_val_max\x18\x02 \x01(\x03:\x02-1\x12\x15\n\ty_val_min\x18\x03 \x01(\x03:\x02-1\x12\x15\n\ty_val_max\x18\x04 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x05 \x02(\t\"\x85\x01\n\x08UnitType\x12\n\n\x06kCount\x10\x00\x12\x0c\n\x08kBoolean\x10\x01\x12\x12\n\x0ekUnixTimestamp\x10\x02\x12\t\n\x05kIOPS\x10\x03\x12\x13\n\x0fkBytesPerSecond\x10\x04\x12\x0c\n\x08kPercent\x10\x05\x12\n\n\x06kHertz\x10\x06\x12\x11\n\rkMicroseconds\x10\x07\"h\n\x0cReportMetric\x12\x0c\n\x08kNoScore\x10\x00\x12\x10\n\x0ckVariability\x10\x01\x12\x08\n\x04kMin\x10\x02\x12\t\n\x05kMean\x10\x03\x12\x0b\n\x07kMedian\x10\x04\x12\x08\n\x04kMax\x10\x05\x12\x0c\n\x08kAnyFail\x10\x06\"B\n\rCurieTestInfo\x12\x31\n\ntest_state\x18\x02 \x02(\x0b\x32\x1d.nutanix.curie.CurieTestState')
+  serialized_pb=_b('\n\x10\x63urie_test.proto\x12\rnutanix.curie\"\xea\x01\n\x11\x43urieTestMetadata\x12\x11\n\ttest_name\x18\x01 \x02(\t\x12\x19\n\x11test_display_name\x18\x02 \x02(\t\x12\x14\n\x0ctest_summary\x18\x03 \x02(\t\x12\x18\n\x10test_description\x18\x04 \x02(\t\x12\x1e\n\x16\x65stimated_runtime_secs\x18\x07 \x01(\x03\x12\x11\n\ttest_tags\x18\x08 \x03(\t\x12\x11\n\tvars_json\x18\t \x01(\t\x12\x18\n\x10source_directory\x18\n \x01(\t\x12\x17\n\x08readonly\x18\x0b \x01(\x08:\x05\x66\x61lse\"\x9f\x01\n\x0f\x43urieTestStatus\"\x8b\x01\n\x04Type\x12\x0f\n\x0bNOT_STARTED\x10\x00\x12\r\n\tEXECUTING\x10\x01\x12\x0c\n\x08STOPPING\x10\x02\x12\x0b\n\x07\x46\x41ILING\x10\x03\x12\r\n\tSUCCEEDED\x10\x04\x12\n\n\x06\x46\x41ILED\x10\x05\x12\x0b\n\x07STOPPED\x10\x06\x12\x0c\n\x08\x43\x41NCELED\x10\x07\x12\x12\n\x0eINTERNAL_ERROR\x10\x08\"I\n\x0e\x43urieTestPhase\"7\n\x04Type\x12\r\n\tPRE_SETUP\x10\x00\x12\t\n\x05SETUP\x10\x01\x12\x07\n\x03RUN\x10\x02\x12\x0c\n\x08TEARDOWN\x10\x03\"\xb5\x01\n\x12\x43urieTestStepProto\x12\x31\n\x05phase\x18\x01 \x02(\x0e\x32\".nutanix.curie.CurieTestPhase.Type\x12\x10\n\x08step_num\x18\x02 \x02(\x05\x12\x18\n\x10step_description\x18\x03 \x01(\t\x12\x0e\n\x06status\x18\x04 \x01(\t\x12\x0f\n\x07message\x18\x05 \x01(\t\x12\x1f\n\x17step_time_estimate_secs\x18\x06 \x01(\x03\"0\n\x0e\x43urieTestIOGen\"\x1e\n\x04Type\x12\x0c\n\x08kUnknown\x10\x00\x12\x08\n\x04kFio\x10\x01\"A\n\x16\x43urieTestConfiguration\x12\x14\n\x0c\x63luster_name\x18\x01 \x01(\t\x12\x11\n\tvars_json\x18\x02 \x01(\t\"\xe1\x01\n\x0e\x43urieTestState\x12\x0f\n\x07test_id\x18\x01 \x02(\x03\x12\x33\n\x06status\x18\x05 \x02(\x0e\x32#.nutanix.curie.CurieTestStatus.Type\x12:\n\x0f\x63ompleted_steps\x18\x06 \x03(\x0b\x32!.nutanix.curie.CurieTestStepProto\x12:\n\x0fremaining_steps\x18\x07 \x03(\x0b\x32!.nutanix.curie.CurieTestStepProto\x12\x11\n\terror_msg\x18\x08 \x01(\t\"\xa1\r\n\x0f\x43urieTestResult\x12\x0c\n\x04name\x18\x01 \x02(\t\x12\x13\n\x0b\x64\x65scription\x18\x02 \x02(\t\x12\r\n\x05group\x18\x03 \x02(\t\x12\x11\n\tresult_id\x18\x04 \x02(\t\x12\x13\n\x0bresult_hint\x18\x05 \x01(\t\x12\x1d\n\x15result_expected_value\x18\x06 \x01(\x01\x12\x38\n\x08\x64\x61ta_raw\x18\x64 \x01(\x0b\x32&.nutanix.curie.CurieTestResult.DataRaw\x12\x36\n\x07\x64\x61ta_2d\x18\x65 \x01(\x0b\x32%.nutanix.curie.CurieTestResult.Data2D\x12\x44\n\x12result_value_bands\x18\x66 \x03(\x0b\x32(.nutanix.curie.CurieTestResult.ValueBand\x1a\x17\n\x07\x44\x61taRaw\x12\x0c\n\x04\x64\x61ta\x18\x01 \x02(\t\x1a\x8a\n\n\x06\x44\x61ta2D\x12L\n\x0fpickled_2d_data\x18\x01 \x01(\x0b\x32\x33.nutanix.curie.CurieTestResult.Data2D.Pickled2DData\x12\x12\n\nplot_x_min\x18\x02 \x01(\x03\x12\x12\n\nplot_x_max\x18\x03 \x01(\x03\x12\x12\n\nplot_y_min\x18\x04 \x01(\x03\x12\x12\n\nplot_y_max\x18\x05 \x01(\x03\x12\x43\n\x0bx_unit_type\x18\x06 \x02(\x0e\x32..nutanix.curie.CurieTestResult.Data2D.UnitType\x12\x43\n\x0by_unit_type\x18\x07 \x02(\x0e\x32..nutanix.curie.CurieTestResult.Data2D.UnitType\x12\x0f\n\x07x_label\x18\x08 \x01(\t\x12\x0f\n\x07y_label\x18\t \x01(\t\x12J\n\x0ereport_metrics\x18\n \x03(\x0e\x32\x32.nutanix.curie.CurieTestResult.Data2D.ReportMetric\x12\x14\n\x0creport_group\x18\x0b \x01(\t\x12H\n\rx_annotations\x18\x64 \x03(\x0b\x32\x31.nutanix.curie.CurieTestResult.Data2D.XAnnotation\x12H\n\ry_annotations\x18\x65 \x03(\x0b\x32\x31.nutanix.curie.CurieTestResult.Data2D.YAnnotation\x12J\n\x0exy_annotations\x18\x66 \x03(\x0b\x32\x32.nutanix.curie.CurieTestResult.Data2D.XYAnnotation\x1a?\n\rPickled2DData\x12\x16\n\x0ex_vals_pickled\x18\x01 \x02(\x0c\x12\x16\n\x0ey_vals_pickled\x18\x02 \x02(\x0c\x1a_\n\x0bXAnnotation\x12\r\n\x05x_val\x18\x01 \x01(\x03\x12\x15\n\ty_val_min\x18\x02 \x01(\x03:\x02-1\x12\x15\n\ty_val_max\x18\x03 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x04 \x02(\t\x1a_\n\x0bYAnnotation\x12\r\n\x05y_val\x18\x01 \x01(\x03\x12\x15\n\tx_val_min\x18\x02 \x01(\x03:\x02-1\x12\x15\n\tx_val_max\x18\x03 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x04 \x02(\t\x1a\x7f\n\x0cXYAnnotation\x12\x15\n\tx_val_min\x18\x01 \x01(\x03:\x02-1\x12\x15\n\tx_val_max\x18\x02 \x01(\x03:\x02-1\x12\x15\n\ty_val_min\x18\x03 \x01(\x03:\x02-1\x12\x15\n\ty_val_max\x18\x04 \x01(\x03:\x02-1\x12\x13\n\x0b\x64\x65scription\x18\x05 \x02(\t\"\x85\x01\n\x08UnitType\x12\n\n\x06kCount\x10\x00\x12\x0c\n\x08kBoolean\x10\x01\x12\x12\n\x0ekUnixTimestamp\x10\x02\x12\t\n\x05kIOPS\x10\x03\x12\x13\n\x0fkBytesPerSecond\x10\x04\x12\x0c\n\x08kPercent\x10\x05\x12\n\n\x06kHertz\x10\x06\x12\x11\n\rkMicroseconds\x10\x07\"h\n\x0cReportMetric\x12\x0c\n\x08kNoScore\x10\x00\x12\x10\n\x0ckVariability\x10\x01\x12\x08\n\x04kMin\x10\x02\x12\t\n\x05kMean\x10\x03\x12\x0b\n\x07kMedian\x10\x04\x12\x08\n\x04kMax\x10\x05\x12\x0c\n\x08kAnyFail\x10\x06\x1a\x37\n\tValueBand\x12\x0c\n\x04name\x18\x01 \x02(\t\x12\r\n\x05lower\x18\x02 \x01(\x01\x12\r\n\x05upper\x18\x03 \x01(\x01\"B\n\rCurieTestInfo\x12\x31\n\ntest_state\x18\x02 \x02(\x0b\x32\x1d.nutanix.curie.CurieTestState')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -32,54 +32,46 @@ _CURIETESTSTATUS_TYPE = _descriptor.EnumDescriptor(
   file=DESCRIPTOR,
   values=[
     _descriptor.EnumValueDescriptor(
-      name='kNotStarted', index=0, number=0,
+      name='NOT_STARTED', index=0, number=0,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kQueued', index=1, number=0,
+      name='EXECUTING', index=1, number=1,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kExecuting', index=2, number=1,
+      name='STOPPING', index=2, number=2,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kRunning', index=3, number=1,
+      name='FAILING', index=3, number=3,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kStopping', index=4, number=2,
+      name='SUCCEEDED', index=4, number=4,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kFailing', index=5, number=3,
+      name='FAILED', index=5, number=5,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kSucceeded', index=6, number=4,
+      name='STOPPED', index=6, number=6,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kFailed', index=7, number=5,
+      name='CANCELED', index=7, number=7,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kStopped', index=8, number=6,
-      options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='kCanceled', index=9, number=7,
-      options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='kInternalError', index=10, number=8,
+      name='INTERNAL_ERROR', index=8, number=8,
       options=None,
       type=None),
   ],
   containing_type=None,
-  options=_descriptor._ParseOptions(descriptor_pb2.EnumOptions(), _b('\020\001')),
+  options=None,
   serialized_start=293,
-  serialized_end=470,
+  serialized_end=432,
 )
 _sym_db.RegisterEnumDescriptor(_CURIETESTSTATUS_TYPE)
 
@@ -90,30 +82,26 @@ _CURIETESTPHASE_TYPE = _descriptor.EnumDescriptor(
   file=DESCRIPTOR,
   values=[
     _descriptor.EnumValueDescriptor(
-      name='kPreSetup', index=0, number=0,
+      name='PRE_SETUP', index=0, number=0,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kPrecondition', index=1, number=0,
+      name='SETUP', index=1, number=1,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kSetup', index=2, number=1,
+      name='RUN', index=2, number=2,
       options=None,
       type=None),
     _descriptor.EnumValueDescriptor(
-      name='kRun', index=3, number=2,
-      options=None,
-      type=None),
-    _descriptor.EnumValueDescriptor(
-      name='kTeardown', index=4, number=3,
+      name='TEARDOWN', index=3, number=3,
       options=None,
       type=None),
   ],
   containing_type=None,
-  options=_descriptor._ParseOptions(descriptor_pb2.EnumOptions(), _b('\020\001')),
-  serialized_start=490,
-  serialized_end=571,
+  options=None,
+  serialized_start=452,
+  serialized_end=507,
 )
 _sym_db.RegisterEnumDescriptor(_CURIETESTPHASE_TYPE)
 
@@ -134,8 +122,8 @@ _CURIETESTIOGEN_TYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=742,
-  serialized_end=772,
+  serialized_start=711,
+  serialized_end=741,
 )
 _sym_db.RegisterEnumDescriptor(_CURIETESTIOGEN_TYPE)
 
@@ -180,8 +168,8 @@ _CURIETESTRESULT_DATA2D_UNITTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=2349,
-  serialized_end=2482,
+  serialized_start=2440,
+  serialized_end=2573,
 )
 _sym_db.RegisterEnumDescriptor(_CURIETESTRESULT_DATA2D_UNITTYPE)
 
@@ -222,8 +210,8 @@ _CURIETESTRESULT_DATA2D_REPORTMETRIC = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=2484,
-  serialized_end=2588,
+  serialized_start=2575,
+  serialized_end=2679,
 )
 _sym_db.RegisterEnumDescriptor(_CURIETESTRESULT_DATA2D_REPORTMETRIC)
 
@@ -336,7 +324,7 @@ _CURIETESTSTATUS = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=273,
-  serialized_end=470,
+  serialized_end=432,
 )
 
 
@@ -360,8 +348,8 @@ _CURIETESTPHASE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=472,
-  serialized_end=571,
+  serialized_start=434,
+  serialized_end=507,
 )
 
 
@@ -394,7 +382,21 @@ _CURIETESTSTEPPROTO = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='step_time_estimate_secs', full_name='nutanix.curie.CurieTestStepProto.step_time_estimate_secs', index=3,
+      name='status', full_name='nutanix.curie.CurieTestStepProto.status', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='message', full_name='nutanix.curie.CurieTestStepProto.message', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='step_time_estimate_secs', full_name='nutanix.curie.CurieTestStepProto.step_time_estimate_secs', index=5,
       number=6, type=3, cpp_type=2, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
@@ -412,8 +414,8 @@ _CURIETESTSTEPPROTO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=574,
-  serialized_end=722,
+  serialized_start=510,
+  serialized_end=691,
 )
 
 
@@ -437,8 +439,8 @@ _CURIETESTIOGEN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=724,
-  serialized_end=772,
+  serialized_start=693,
+  serialized_end=741,
 )
 
 
@@ -475,8 +477,8 @@ _CURIETESTCONFIGURATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=774,
-  serialized_end=839,
+  serialized_start=743,
+  serialized_end=808,
 )
 
 
@@ -534,8 +536,8 @@ _CURIETESTSTATE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=842,
-  serialized_end=1067,
+  serialized_start=811,
+  serialized_end=1036,
 )
 
 
@@ -565,8 +567,8 @@ _CURIETESTRESULT_DATARAW = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1272,
-  serialized_end=1295,
+  serialized_start=1363,
+  serialized_end=1386,
 )
 
 _CURIETESTRESULT_DATA2D_PICKLED2DDATA = _descriptor.Descriptor(
@@ -602,8 +604,8 @@ _CURIETESTRESULT_DATA2D_PICKLED2DDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1960,
-  serialized_end=2023,
+  serialized_start=2051,
+  serialized_end=2114,
 )
 
 _CURIETESTRESULT_DATA2D_XANNOTATION = _descriptor.Descriptor(
@@ -653,8 +655,8 @@ _CURIETESTRESULT_DATA2D_XANNOTATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2025,
-  serialized_end=2120,
+  serialized_start=2116,
+  serialized_end=2211,
 )
 
 _CURIETESTRESULT_DATA2D_YANNOTATION = _descriptor.Descriptor(
@@ -704,8 +706,8 @@ _CURIETESTRESULT_DATA2D_YANNOTATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2122,
-  serialized_end=2217,
+  serialized_start=2213,
+  serialized_end=2308,
 )
 
 _CURIETESTRESULT_DATA2D_XYANNOTATION = _descriptor.Descriptor(
@@ -762,8 +764,8 @@ _CURIETESTRESULT_DATA2D_XYANNOTATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2219,
-  serialized_end=2346,
+  serialized_start=2310,
+  serialized_end=2437,
 )
 
 _CURIETESTRESULT_DATA2D = _descriptor.Descriptor(
@@ -885,8 +887,52 @@ _CURIETESTRESULT_DATA2D = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1298,
-  serialized_end=2588,
+  serialized_start=1389,
+  serialized_end=2679,
+)
+
+_CURIETESTRESULT_VALUEBAND = _descriptor.Descriptor(
+  name='ValueBand',
+  full_name='nutanix.curie.CurieTestResult.ValueBand',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='name', full_name='nutanix.curie.CurieTestResult.ValueBand.name', index=0,
+      number=1, type=9, cpp_type=9, label=2,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='lower', full_name='nutanix.curie.CurieTestResult.ValueBand.lower', index=1,
+      number=2, type=1, cpp_type=5, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='upper', full_name='nutanix.curie.CurieTestResult.ValueBand.upper', index=2,
+      number=3, type=1, cpp_type=5, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=2681,
+  serialized_end=2736,
 )
 
 _CURIETESTRESULT = _descriptor.Descriptor(
@@ -925,23 +971,44 @@ _CURIETESTRESULT = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='data_raw', full_name='nutanix.curie.CurieTestResult.data_raw', index=4,
+      name='result_hint', full_name='nutanix.curie.CurieTestResult.result_hint', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='result_expected_value', full_name='nutanix.curie.CurieTestResult.result_expected_value', index=5,
+      number=6, type=1, cpp_type=5, label=1,
+      has_default_value=False, default_value=float(0),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='data_raw', full_name='nutanix.curie.CurieTestResult.data_raw', index=6,
       number=100, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='data_2d', full_name='nutanix.curie.CurieTestResult.data_2d', index=5,
+      name='data_2d', full_name='nutanix.curie.CurieTestResult.data_2d', index=7,
       number=101, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='result_value_bands', full_name='nutanix.curie.CurieTestResult.result_value_bands', index=8,
+      number=102, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
   ],
   extensions=[
   ],
-  nested_types=[_CURIETESTRESULT_DATARAW, _CURIETESTRESULT_DATA2D, ],
+  nested_types=[_CURIETESTRESULT_DATARAW, _CURIETESTRESULT_DATA2D, _CURIETESTRESULT_VALUEBAND, ],
   enum_types=[
   ],
   options=None,
@@ -950,8 +1017,8 @@ _CURIETESTRESULT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1070,
-  serialized_end=2588,
+  serialized_start=1039,
+  serialized_end=2736,
 )
 
 
@@ -981,8 +1048,8 @@ _CURIETESTINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2590,
-  serialized_end=2656,
+  serialized_start=2738,
+  serialized_end=2804,
 )
 
 _CURIETESTSTATUS_TYPE.containing_type = _CURIETESTSTATUS
@@ -1007,8 +1074,10 @@ _CURIETESTRESULT_DATA2D.fields_by_name['xy_annotations'].message_type = _CURIETE
 _CURIETESTRESULT_DATA2D.containing_type = _CURIETESTRESULT
 _CURIETESTRESULT_DATA2D_UNITTYPE.containing_type = _CURIETESTRESULT_DATA2D
 _CURIETESTRESULT_DATA2D_REPORTMETRIC.containing_type = _CURIETESTRESULT_DATA2D
+_CURIETESTRESULT_VALUEBAND.containing_type = _CURIETESTRESULT
 _CURIETESTRESULT.fields_by_name['data_raw'].message_type = _CURIETESTRESULT_DATARAW
 _CURIETESTRESULT.fields_by_name['data_2d'].message_type = _CURIETESTRESULT_DATA2D
+_CURIETESTRESULT.fields_by_name['result_value_bands'].message_type = _CURIETESTRESULT_VALUEBAND
 _CURIETESTINFO.fields_by_name['test_state'].message_type = _CURIETESTSTATE
 DESCRIPTOR.message_types_by_name['CurieTestMetadata'] = _CURIETESTMETADATA
 DESCRIPTOR.message_types_by_name['CurieTestStatus'] = _CURIETESTSTATUS
@@ -1112,6 +1181,13 @@ CurieTestResult = _reflection.GeneratedProtocolMessageType('CurieTestResult', (_
     # @@protoc_insertion_point(class_scope:nutanix.curie.CurieTestResult.Data2D)
     ))
   ,
+
+  ValueBand = _reflection.GeneratedProtocolMessageType('ValueBand', (_message.Message,), dict(
+    DESCRIPTOR = _CURIETESTRESULT_VALUEBAND,
+    __module__ = 'curie_test_pb2'
+    # @@protoc_insertion_point(class_scope:nutanix.curie.CurieTestResult.ValueBand)
+    ))
+  ,
   DESCRIPTOR = _CURIETESTRESULT,
   __module__ = 'curie_test_pb2'
   # @@protoc_insertion_point(class_scope:nutanix.curie.CurieTestResult)
@@ -1123,6 +1199,7 @@ _sym_db.RegisterMessage(CurieTestResult.Data2D.Pickled2DData)
 _sym_db.RegisterMessage(CurieTestResult.Data2D.XAnnotation)
 _sym_db.RegisterMessage(CurieTestResult.Data2D.YAnnotation)
 _sym_db.RegisterMessage(CurieTestResult.Data2D.XYAnnotation)
+_sym_db.RegisterMessage(CurieTestResult.ValueBand)
 
 CurieTestInfo = _reflection.GeneratedProtocolMessageType('CurieTestInfo', (_message.Message,), dict(
   DESCRIPTOR = _CURIETESTINFO,
@@ -1132,8 +1209,4 @@ CurieTestInfo = _reflection.GeneratedProtocolMessageType('CurieTestInfo', (_mess
 _sym_db.RegisterMessage(CurieTestInfo)
 
 
-_CURIETESTSTATUS_TYPE.has_options = True
-_CURIETESTSTATUS_TYPE._options = _descriptor._ParseOptions(descriptor_pb2.EnumOptions(), _b('\020\001'))
-_CURIETESTPHASE_TYPE.has_options = True
-_CURIETESTPHASE_TYPE._options = _descriptor._ParseOptions(descriptor_pb2.EnumOptions(), _b('\020\001'))
 # @@protoc_insertion_point(module_scope)

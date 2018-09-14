@@ -26,7 +26,7 @@ gflags.DEFINE_boolean("debug",
 def suite():
   if not gflags.FLAGS.is_parsed():
     gflags.FLAGS(sys.argv)
-  curie_log.initialize(logtostderr=True, debug=gflags.FLAGS.debug)
+  curie_log.initialize(logtostderr=False, debug=gflags.FLAGS.debug)
   pytest_directory = os.path.dirname(__file__)
   return unittest.defaultTestLoader.discover(gflags.FLAGS.start_module,
                                              top_level_dir=pytest_directory,
@@ -35,5 +35,5 @@ def suite():
 
 if __name__ == "__main__":
   gflags.FLAGS(sys.argv)
-  success = unittest.TextTestRunner(verbosity=2).run(suite()).wasSuccessful()
+  success = unittest.TextTestRunner(verbosity=1).run(suite()).wasSuccessful()
   sys.exit(not success)

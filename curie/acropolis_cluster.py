@@ -27,7 +27,6 @@ from curie.name_util import CURIE_GOLDIMAGE_VM_DISK_PREFIX, NameUtil
 from curie.node import NodePropertyNames
 from curie.nutanix_cluster_dp_mixin import NutanixClusterDPMixin
 from curie.task import PrismTask, PrismTaskPoller, TaskPoller, TaskStatus
-from curie.test.scenario_util import ScenarioUtil
 from curie.util import CurieUtil
 from curie.vm import VmDescriptor, VmParams
 
@@ -178,11 +177,26 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
       [(node.id, node) for node in self._metadata.cluster_nodes])
 
     found_node_id_set = set()
+    node_uuid_metadata_id_map = self.get_node_uuid_metadata_id_map()
     for node_json in self._prism_client.hosts_get().get("entities", []):
       if node_json["clusterUuid"] != cluster_json["clusterUuid"]:
         continue
-      curr_node_identifier = self.get_node_uuid_metadata_id_map()[
-        node_json["uuid"]]
+      try:
+        curr_node_identifier = node_uuid_metadata_id_map[node_json["uuid"]]
+      except KeyError:
+        raise CurieTestException(
+          cause=
+          "Node with UUID '%s' found in hosts_get response, but not in the "
+          "Curie cluster metadata." % node_json["uuid"],
+          impact=
+          "The configured cluster can not be used because the nodes chosen "
+          "for this cluster do not exactly match the nodes in AHV.",
+          corrective_action=
+          "Please check that all of the nodes in the AHV cluster are part of "
+          "the cluster configuration. For example, if the AHV cluster has "
+          "four nodes, please check that all four nodes are being used in the "
+          "Curie cluster configuration."
+        )
       node_proto = self._node_id_metadata_map.get(curr_node_identifier)
       CHECK(node_proto)
       found_node_id_set.add(curr_node_identifier)
@@ -216,25 +230,11 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
     return node_uuid_metadata_id_map
 
   def nodes(self):
-    node_id_set = set(self._node_id_metadata_map.keys())
-    id_index_map = dict((n.id, ii)
-                        for ii, n in enumerate(self._metadata.cluster_nodes))
-
-    def lookup_node_index(node_json):
-      for key in ["uuid", "name", "hypervisorAddress"]:
-        if node_json.get(key) in id_index_map:
-          return id_index_map[node_json[key]]
-
-      raise CurieException(CurieError.kInvalidParameter,
-                            "Unknown node '%s'" % (node_json["uuid"]))
-    host_json_list = filter(
-      lambda host_json: self.get_node_uuid_metadata_id_map()[
-        host_json["uuid"]] in node_id_set,
-      self._prism_client.hosts_get().get("entities", []))
-
-    return [
-      AcropolisNode(self, host["uuid"], lookup_node_index(host))
-      for host in host_json_list]
+    nodes = []
+    for index, node_metadata in enumerate(self._metadata.cluster_nodes):
+      uuid = self.identifier_to_node_uuid(self._prism_client, node_metadata.id)
+      nodes.append(AcropolisNode(self, uuid, index))
+    return nodes
 
   def power_off_nodes_soft(self, nodes, timeout_secs=None, async=False):
     """See 'Cluster.power_off_nodes_soft' for definition."""
@@ -577,29 +577,9 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
     raise NotImplementedError("Not currently supported for AHV")
 
   def cleanup(self, test_ids=()):
-    """Shutdown and remove all curie VMs from this cluster.
-
-    Raises:
-      CurieException if cluster is not ready for cleanup after 40 minutes.
+    """Remove all Curie templates and state from this cluster.
     """
     log.info("Cleaning up state on cluster %s", self.metadata().cluster_name)
-
-    if not ScenarioUtil.prereq_runtime_cluster_is_ready(self):
-      ScenarioUtil.prereq_runtime_cluster_is_ready_fix(self)
-
-    cluster_json = self.__lookup_cluster_json()
-    log.info("Cleaning up state on cluster %s", cluster_json["name"])
-
-    vms = self.vms()
-    test_vm_names, _ = NameUtil.filter_test_vm_names(
-      [vm.vm_name() for vm in vms], test_ids)
-
-    test_vms = [vm for vm in vms if vm.vm_name() in test_vm_names]
-
-    # Allow exceptions from power off or delete to propagate upwards.
-    self.__set_power_state_for_vms(test_vms, "off")
-    self.delete_vms(test_vms)
-
     self._prism_client.cleanup_nutanix_state(test_ids)
     self.cleanup_images()
 
@@ -1017,5 +997,5 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
         return [uuid_vm_map[uuid] for uuid in vm_uuids]  # Maintain order.
     else:
       raise CurieTestException("Timed out waiting for VMs to be visible via "
-                                "the /vms API (%ds elapsed)" %
-                                deadline_secs - start_time_secs)
+                               "the /vms API (%ds elapsed)" %
+                               (deadline_secs - start_time_secs))

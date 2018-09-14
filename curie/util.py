@@ -458,3 +458,24 @@ def get_cluster_class(cluster_metadata):
   else:
     raise ValueError("Unknown hypervisor type, metadata %s" %
                      cluster_metadata)
+
+
+def chunk_iter(sequence, n):
+  """
+  Split a sequence into chunks no larger than n.
+
+  If the sequence is not evenly divisible by n, the final chunk which is
+  smaller than n will not be padded.
+
+  Yields:
+    sequence: Chunk with length less than or equal to n.
+  """
+  start = 0
+  while True:
+    end = start + n
+    chunk = sequence[start:end]
+    if chunk:
+      yield chunk
+      start += n
+    else:
+      break

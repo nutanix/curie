@@ -1,0 +1,30 @@
+---
+version: "2"
+plugins:
+  csslint:
+    enabled: false
+  coffeelint:
+    enabled: false
+  duplication:
+    enabled: true
+    config:
+      languages:
+      - python
+  eslint:
+    enabled: false
+  fixme:
+    enabled: true
+  rubocop:
+    enabled: false
+exclude_patterns:
+- config/
+- db/
+- dist/
+- features/
+- node_modules/
+- script/
+- spec/
+- test/
+- tests/
+- vendor/
+- curie/etc/

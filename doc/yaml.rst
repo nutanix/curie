@@ -22,7 +22,7 @@ Scenario resource files may be referenced within each of the steps. For
 example, if a workload generator is used to create storage traffic in the
 scenario, the workload configuration files are placed in the subdirectory
 (alongside ``test.yml``), and are referenced in steps from the
-:mod:`curie.test.steps.workload` module.
+:mod:`curie.steps.workload` module.
 
 A typical scenario directory structure might look like this:
 ::
@@ -170,7 +170,15 @@ will show up as a plot in the X-Ray UI.
         time.
       * ``latency``: Create a line plot showing latency of I/O operations over
         time.
-   * ``aggregate`` (Optional): Combine the results from all VMs associated with
+* Optional
+   * ``result_hint``: Provides text to the interface on how to interpret the
+     result.
+   * ``result_expected_value``: Provides an indication of the expected value
+     of the result. Can be used to create a line indicating this value.
+   * ``result_value_bands``: A list of dictionaries with name, upper, and lower
+     fields used to help create visual bands, for example a 95% prediction
+     interval.
+   * ``aggregate``: Combine the results from all VMs associated with
      the workload into a single plot. Options include:
       * ``sum``
       * ``min``
@@ -180,7 +188,7 @@ will show up as a plot in the X-Ray UI.
 
 .. literalinclude:: example_test.yml
    :language: yaml
-   :lines: 85-91
+   :lines: 85-97
    :linenos:
    :lineno-match:
 
@@ -194,7 +202,7 @@ Because these setup steps occur before the measurement period of the scenario
 begins, no results are rendered in the X-Ray UI during these steps.
 
 For a complete list of the steps available, see the
-:doc:`/apidoc/curie.test.steps`.
+:doc:`/apidoc/curie.steps`.
 
 .. note:: The ``test`` parameter of each step is passed in implicitly, and
           should not be included in the YAML.
@@ -213,7 +221,7 @@ during the scenario's run phase.
 Results are rendered in the X-Ray UI during these steps.
 
 For a complete list of the steps available, see the
-:doc:`/apidoc/curie.test.steps`.
+:doc:`/apidoc/curie.steps`.
 
 .. note:: The ``test`` parameter of each step is passed in implicitly, and
           should not be included in the YAML.
@@ -227,7 +235,7 @@ For a complete list of the steps available, see the
 Steps
 -----
 For a complete list of the steps available, see the
-:doc:`apidoc/curie.test.steps`.
+:doc:`apidoc/curie.steps`.
 
 .. note:: The ``test`` parameter of each step is passed in implicitly, and
           should not be included in the YAML.

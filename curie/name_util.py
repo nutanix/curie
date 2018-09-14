@@ -117,6 +117,16 @@ class NameUtil(object):
     return CURIE_VM_NAME_PREFIX
 
   @staticmethod
+  def template_name_from_vm_name(template_name):
+    return template_name.replace("_test", "_temp", 1)
+
+  @staticmethod
+  def is_goldimage_vm(vm_name):
+    if vm_name.startswith(CURIE_GOLDIMAGE_VM_NAME_PREFIX):
+      return True
+    return False
+
+  @staticmethod
   def _filter_test_entity_names(entity_names, test_ids, prefix):
     """
     Given the list of entity names 'entity_names', return a tuple where the

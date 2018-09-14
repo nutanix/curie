@@ -5,6 +5,7 @@
 import logging
 import threading
 import time
+from collections import OrderedDict
 
 from pyVmomi import vmodl
 
@@ -12,7 +13,6 @@ from curie.acropolis_types import AcropolisTaskInfo
 from curie.exception import CurieTestException
 from curie.json_util import Enum
 from curie.util import get_optional_vim_attr, ReleaseLock
-from curie.vmm_client import VmmClientException
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ class TaskStatus(Enum):
   kFailed = 6
   kSucceeded = 7
   kInternalError = 8
+  kPendingRestart = 9
 
   @classmethod
   def is_ready(cls, status):
@@ -187,6 +188,30 @@ class PrismTaskDescriptor(TaskDescriptor):
     return PrismTask
 
 class HypervTaskDescriptor(TaskDescriptor):
+
+  def __init__(
+      self,
+      task_id=None,
+      task_type=None,
+      pre_task_msg="",
+      post_task_msg="",
+      create_task_func=None,
+      task_func_args=None,
+      task_func_kwargs=None,
+      state=None,
+      entity_name="",
+      desired_state=TaskStatus.kSucceeded,
+      is_complete_func=None,
+      vmm_restart_count=0, # must be >0 for a task to be restarted
+      *args,
+      **kwargs):
+    super(HypervTaskDescriptor, self).__init__(task_id=task_id, task_type=task_type, pre_task_msg=pre_task_msg,
+                                               post_task_msg=post_task_msg, create_task_func=create_task_func,
+                                               task_func_args=task_func_args, task_func_kwargs=task_func_kwargs,
+                                               state=state, entity_name=entity_name, desired_state=desired_state,
+                                               is_complete_func=is_complete_func, args=args, kwargs=kwargs)
+    self._vmm_restart_count = vmm_restart_count
+
   @classmethod
   def get_default_task_type(cls):
     return "HypervTask"
@@ -362,6 +387,15 @@ class HypervTask(Task):
     "completed": TaskStatus.kSucceeded,
   }
 
+  def __init__(self, descriptor=None, task=None, state=None, task_id=None):
+    super(HypervTask, self).__init__(descriptor=descriptor, task=task, state=state, task_id=task_id)
+
+    # Task restarted counter. Increments each time task is restarted.
+    self._restarted_count = 0
+
+    # Time at which task should be restarted.
+    self._restart_time = None
+
   @classmethod
   def get_descriptor_class(cls):
     return HypervTaskDescriptor
@@ -370,6 +404,9 @@ class HypervTask(Task):
     """
     Updates state from JSON response
     """
+    if self._state.status == TaskStatus.kPendingRestart:
+      return
+
     self._state.progress_pct = task_json.get("progress")
     self._state.status = self.__VMM_STATUS_CURIE_STATUS_MAP__.get(
       task_json["state"].lower(), TaskStatus.kUnknown)
@@ -393,6 +430,42 @@ class HypervTask(Task):
 
       self._descriptor.task_id = response[0]["task_id"]
       self._descriptor.task_type = response[0]["task_type"]
+
+  def set_wait_for_restart(self):
+    self._state.status = TaskStatus.kPendingRestart
+    self._restart_time = time.time() + (self._restarted_count+1)*60
+    log.debug("Task '%s' waiting to restart. Scheduled for restart at '%s'.",
+              self._descriptor.task_id, time.ctime(self._restart_time))
+
+  def restart(self, vmm):
+    with self._rlock:
+      self._restarted_count += 1
+      self._state.status = TaskStatus.kExecuting
+      self._state.progress_pct = 0
+      self._state.error = ""
+
+      response = []
+      try:
+        response = vmm.vm_restart_vmm_job(
+          [{"task_id": self._descriptor.task_id, "task_type": self._descriptor.task_type}])
+        log.info("Restart %d of task %s successful. New task is %s.", self._restarted_count,
+                 self._descriptor.task_id, response[0]["task_id"])
+      except Exception as err:
+        # return with the old task_id in case of restart failure
+        log.info("Restart %d of task %s failed.", self._restarted_count,
+                 self._descriptor.task_id)
+        return
+      if len(response) != 1:
+        raise CurieTestException(
+          "Expected exactly 1 task in response - got %r" % response)
+      self._descriptor.task_id = response[0]["task_id"]
+      self._descriptor.task_type = response[0]["task_type"]
+
+  def is_restartable(self):
+    # For now tasks should always be restarted, since only create_vm is using this
+    if self._restarted_count < self._descriptor._vmm_restart_count:
+      return True
+    return False
 
   def _hyperv_log_helper(self, task_json):
     if self._state.status == TaskStatus.kFailed:
@@ -566,7 +639,7 @@ class TaskPoller(object):
         If one or more tasks fail.
         If any task does not complete within the timeout.
     """
-    tid_task_map = {}
+    tid_task_map = OrderedDict()
 
     task_descriptors = task_descriptors or []
     if isinstance(task_descriptors, TaskDescriptor):
@@ -580,7 +653,7 @@ class TaskPoller(object):
     for task in tasks:
       tid_task_map[task.id()] = task
 
-    ret_map = {}
+    ret_map = OrderedDict()
 
     if not tid_task_map:
       return ret_map
@@ -602,7 +675,10 @@ class TaskPoller(object):
           num_remaining)
       # TODO (jklein): Find appropriate way to handle whether or not to
       # cancel/wait on uncancelable.
-      poller.wait_for_all()
+      if not poller.wait_for_all():
+        log.warning("Not all tasks exited before the deadline")
+        poller._should_terminate = True
+      poller.join()
       tasks_succeeded = [task for task in tid_task_map.itervalues()
                          if task._descriptor.has_succeeded()]
       err_msg = "Tasks timed out after '%s' seconds (%d/%d succeeded)" % (
@@ -621,15 +697,18 @@ class TaskPoller(object):
 
     tasks_failed = [task for task in tid_task_map.itervalues()
                     if not task._descriptor.has_succeeded()]
+    most_recent_error = ""
     if tasks_failed:
       for task in tasks_failed:
         log.error("Task failed: %s - %s", task, task._state.error)
         log.debug(task._state.output)
+        if task._state.error:
+          most_recent_error = task._state.error
       if raise_on_failure:
         raise CurieTestException("%d of %d tasks failed. See log for more "
                                   "details (most recent error message: '%s')" %
                                   (len(tasks_failed), len(tid_task_map),
-                                   task._state.error))
+                                   most_recent_error))
 
     return ret_map
 
@@ -687,6 +766,8 @@ class TaskPoller(object):
     self._thread = None
     self._thread_exception = None
 
+    self._should_terminate = False
+
   def add_task(self, task):
     """
     Adds 'task' to the batch.
@@ -721,6 +802,10 @@ class TaskPoller(object):
     deadline = self.get_deadline_secs(timeout_secs)
     with self._task_complete_cv:
       while self._remaining_task_count > 0:
+        if self._thread_exception:
+          raise CurieTestException(
+            "Unhandled exception occurred in %s while waiting for tasks: %s" %
+            (self.__class__.__name__, self._thread_exception))
         self._task_complete_cv.wait(timeout=self.get_timeout_secs(deadline))
         if self._thread_exception:
           raise CurieTestException(
@@ -783,6 +868,12 @@ class TaskPoller(object):
 
       return self._remaining_task_count
 
+  def join(self):
+    """
+    Wait for task threads to finish.
+    """
+    self._thread.join()
+
   def _get_recently_completed_task_ids(self):
     """
     NB: Assumes the lock is held. Meant to be called from within 'wait_for'.
@@ -805,6 +896,10 @@ class TaskPoller(object):
     """
     Polls status for the currently active tasks and updates as appropriate.
     """
+    if self._should_terminate:
+      raise RuntimeError("Task poller thread has been marked to terminate "
+                         "with %d tasks still running" %
+                         len(self._active_task_id_set))
     with self._task_complete_cv:
       # Avoid log messages if there is nothing to poll.
       if self._remaining_task_count == 0 or not self._active_task_id_set:
@@ -961,23 +1056,25 @@ class HypervTaskPoller(TaskPoller):
 
   def __init__(self, max_concurrent,
                poll_interval_secs=TaskPoller.DEFAULT_POLL_SECS,
-               vmm=None):
+               vmm=None, batch_var=None, cancel_on_failure=True):
     """
     Args:
       max_concurrent (number): Maximum number of tasks which should execute
         concurrently.
       poll_interval_secs (number): Minimum interval between polling active
         tasks.
-      prism_client (NutanixRestApiClient): Prism client instance with which to
+      vmm (VmmClient): SCVMM client instance with which to
         poll tasks.
-      cutoff_usecs (number): Cutoff timestamp in usecs. Tasks older than this
-        timestamp are excluded from polling.
+      cancel_on_failure : Cancell all running and queued tasks, when one of the
+        tasks fails
       **kwargs (dict): Additional kwargs, passed to 'super.__init__'.
     """
     if vmm is None:
       raise RuntimeError("Must provide a Vmm client")
 
     self._vmm = vmm
+    self._cancel_on_failure = cancel_on_failure
+    self._batch_var = batch_var
     super(HypervTaskPoller, self).__init__(
       max_concurrent, poll_interval_secs=poll_interval_secs)
 
@@ -998,28 +1095,61 @@ class HypervTaskPoller(TaskPoller):
                len(self._active_task_id_set), self._remaining_task_count,
                self._total_task_count)
 
-      active_task_descriptors = [self._id_task_map[task_id]._descriptor
-                                 for task_id in self._active_task_id_set]
-      updated_task_list = self._vmm.vm_get_job_status([
-        {"task_id": descriptor.task_id, "task_type": descriptor.task_type}
-        for descriptor in active_task_descriptors
-      ])
-      updated_tasks = {task["task_id"]: task for task in updated_task_list}
+      active_task_descriptors = set()
+      for task_id in self._active_task_id_set:
+        task = self._id_task_map[task_id]
+        if not task._state.status == TaskStatus.kPendingRestart:
+          active_task_descriptors.add(self._id_task_map[task_id]._descriptor)
+
+      updated_tasks = {}
+      if active_task_descriptors:
+        updated_task_list = self._vmm.vm_get_job_status([
+          {"task_id": descriptor.task_id, "task_type": descriptor.task_type}
+          for descriptor in active_task_descriptors
+        ])
+        updated_tasks = {task["task_id"]: task for task in updated_task_list}
 
       completed_task_id_set = set()
+      failed_task_id_set = set()
       for tid in self._active_task_id_set:
         task = self._id_task_map[tid]
-        task.update_from_json(updated_tasks[task.id()])
-        if task._descriptor.is_complete():
-          log.info("Completed %s (%s%%) %s", task, task._state.progress_pct,
-                   task._state.error if task._state.error else "")
-          if task._descriptor.post_task_msg:
-            log.info(task._descriptor.post_task_msg)
-          completed_task_id_set.add(tid)
-          self._remaining_task_count -= 1
+        if task._state.status == TaskStatus.kPendingRestart:
+          if task._restart_time < time.time():
+            failed_task_id_set.add(tid)
+          else:
+            log.debug("Task %s still pending. Restarting at %s.", task._descriptor.task_id, time.ctime(task._restart_time).__str__())
+        else:
+          task.update_from_json(updated_tasks[task.id()])
+          if task._descriptor.is_complete():
+            log.info("Completed %s (%s%%) %s", task, task._state.progress_pct,
+                     task._state.error if task._state.error else "")
+
+            if not task._descriptor.has_succeeded():
+              if task.is_restartable() and not self._should_terminate:
+                task.set_wait_for_restart()
+                continue
+              else:
+                if self._cancel_on_failure:
+                  self._should_terminate = True
+            completed_task_id_set.add(tid)
+            if task._descriptor.post_task_msg:
+              log.info(task._descriptor.post_task_msg)
+            self._remaining_task_count -= 1
+      # Check if there are failed tasks that can be restarted and restart them
+      if failed_task_id_set:
+        # Restart failed tasks that are
+        for tid in failed_task_id_set:
+          task = self._id_task_map[tid]
+          del self._id_task_map[tid]
+          task.restart(self._vmm)
+          self._id_task_map[task._descriptor.task_id] = task
+          self._active_task_id_set.remove(tid)
+          self._active_task_id_set.add(task._descriptor.task_id)
+
       if completed_task_id_set:
         self._active_task_id_set -= completed_task_id_set
         self._completed_task_id_list.extend(completed_task_id_set)
+      if completed_task_id_set or failed_task_id_set:
         self._task_complete_cv.notify_all()
       # Release lock and ensure we don't poll more frequently than configured.
       # Even if no sleep is required, call sleep(0) to allow the scheduler to
@@ -1035,18 +1165,93 @@ class HypervTaskPoller(TaskPoller):
       (int) Number of remaining tasks which could not be canceled.
     """
     log.info("Stopping all running tasks")
-    active_task_descriptors = [self._id_task_map[task_id]._descriptor
-                               for task_id in self._active_task_id_set]
+    active_task_descriptors = set()
+    pending_task_ids = set()
+    for task_id in self._active_task_id_set:
+      task = self._id_task_map[task_id]
+      if not task._state.status == TaskStatus.kPendingRestart:
+        active_task_descriptors.add(self._id_task_map[task_id]._descriptor)
+      else:
+        task._state.status = TaskStatus.kCanceled
+        pending_task_ids.add(task_id)
+        del self._id_task_map[task_id]
+
+    self._active_task_id_set -= pending_task_ids
+
     remaining_tasks = self._vmm.vm_stop_job(
       [{"task_id": descriptor.task_id, "task_type": descriptor.task_type}
         for descriptor in active_task_descriptors])
 
-    for task in remaining_tasks:
-      if task["state"].lower() == "running":
-        log.info("Task: %s failed to be canceled", task["task_id"])
-      else:
-        log.info("Task: %s is in state: %s", task["task_id"], task["state"])
-        self._active_task_id_set.discard(task["task_id"])
-        self._remaining_task_count -= 1
+    while self._active_task_id_set:
+      log.info("Waiting for active tasks")
+      self._poll_active_tasks()
+    self._remaining_task_count = 0
 
-    return self._remaining_task_count
+  def _run(self):
+    with self._task_complete_cv:
+      try:
+        task_index = 0
+        while task_index < len(self._task_queue):
+          tasks_to_start = 0
+          while tasks_to_start == 0:
+            self._poll_active_tasks()
+            tasks_to_start = min(self._max_concurrent - len(self._active_task_id_set), self._remaining_task_count)
+            if self._should_terminate:
+              break
+
+          if self._should_terminate:
+            break
+          task_batch = self._task_queue[task_index:task_index + tasks_to_start]
+          task_index += tasks_to_start
+
+          if self._batch_var:
+            meta_task_create_func = task_batch[0]._descriptor.create_task_func
+            meta_task_func_args = task_batch[0]._descriptor.task_func_args
+            meta_task_func_kwargs = task_batch[0]._descriptor.task_func_kwargs
+            coalesced_args = []
+            for task in task_batch:
+              coalesced_args.extend(task._descriptor.task_func_kwargs[self._batch_var])
+            meta_task_func_kwargs[self._batch_var] = sorted(coalesced_args)
+            # print(repr(meta_task_create_func))
+            # print(repr(meta_task_func_args))
+            # print(repr(meta_task_func_kwargs))
+            response = meta_task_create_func(*meta_task_func_args, **meta_task_func_kwargs)
+            if len(response) != len(task_batch):
+              raise CurieTestException(
+                "Expected exactly %d task(s) in response - got %r" %
+                (len(task_batch), response))
+            for task, resp in zip(task_batch, response):
+              task._descriptor.task_id = resp["task_id"]
+              task._descriptor.task_type = resp["task_type"]
+              tid = task.id()
+              if tid in self._id_task_map:
+                raise CurieTestException(
+                  "Duplicate task ID '%s' found in response to '%s'" %
+                  (tid, meta_task_create_func.__name__))
+              self._id_task_map[tid] = task
+              self._active_task_id_set.add(tid)
+              log.info("Started %s: %s", tid, task._descriptor.pre_task_msg or "")
+          else:
+            for task in task_batch:
+              if task.is_ready():
+                task.start()
+                tid = task.id()
+                if tid in self._id_task_map:
+                  raise CurieTestException(
+                    "Duplicate task ID '%s' found in response to '%s'" %
+                    (tid, task._descriptor.create_task_func.__name__))
+                self._id_task_map[tid] = task
+                self._active_task_id_set.add(tid)
+                log.info("Started %s: %s", tid, task._descriptor.pre_task_msg or "")
+        # Wait for all tasks to finish.
+        if self._should_terminate:
+          self.stop()
+        else:
+          while self._active_task_id_set:
+            self._poll_active_tasks()
+      except BaseException as exc:
+        self._thread_exception = exc
+        log.exception("Caught exception in main poll thread")
+        raise
+      finally:
+        self._task_complete_cv.notify_all()

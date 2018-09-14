@@ -13,8 +13,8 @@ from curie.charon_agent_interface_pb2 import CmdStatus
 from curie.exception import CurieException, ScenarioStoppedError
 from curie.exception import CurieTestException
 from curie.name_util import NameUtil
-from curie.test.scenario_util import ScenarioUtil
-from curie.test.steps import _util
+from curie.scenario_util import ScenarioUtil
+from curie.steps import _util
 
 log = logging.getLogger(__name__)
 
@@ -387,7 +387,7 @@ class IOGen(object):
       max_concurrent_transfers: (int) Maximum number of concurrent file
         transfers.
     """
-    ScenarioUtil.create_remote_output_dir(vms, self._remote_results_path)
+    self.__create_remote_output_dir(vms, self._remote_results_path)
     transfer_pool = ThreadPool(max_concurrent_transfers)
     result_tuples = []
     transfer_timeout_secs = 120
@@ -418,3 +418,32 @@ class IOGen(object):
       vm.wait_for_cmd(command_id, poll_secs=1, timeout_secs=60)
       log.info("VM %s prepared with latest configuration for %s",
                vm.vm_name(), self._name)
+
+  @staticmethod
+  def __create_remote_output_dir(vms, path):
+    """Create an output directory for each vm in a list of vms.
+
+    Any existing directory or file at the given path will be deleted and
+    overwritten.
+
+    Args:
+      vms (list of CurieVM): VMs in which to create the output directory.
+      path (str): Absolute path to the remote output directory.
+
+    Raises:
+      CurieTestException: If the operation fails.
+    """
+    rm_cmd_ids = []
+    for vm in vms:
+      cmd_id = "rm_%s_%d" % (vm.vm_name(), time.time() * 1e6)
+      vm.execute_async(cmd_id, "rm -rf %s" % path)
+      rm_cmd_ids.append((vm, cmd_id))
+    for vm, cmd_id in rm_cmd_ids:
+      vm.wait_for_cmd(cmd_id, 30, poll_secs=1)
+    mkdir_cmd_ids = []
+    for vm in vms:
+      cmd_id = "mkdir_%s_%d" % (vm.vm_name(), time.time() * 1e6)
+      vm.execute_async(cmd_id, "mkdir -p %s" % path)
+      mkdir_cmd_ids.append((vm, cmd_id))
+    for vm, cmd_id in mkdir_cmd_ids:
+      vm.wait_for_cmd(cmd_id, 30, poll_secs=1)

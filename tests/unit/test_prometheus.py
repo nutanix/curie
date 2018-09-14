@@ -11,7 +11,7 @@ import requests
 
 from curie import prometheus
 from curie.scenario import Scenario
-from curie.test.vm_group import VMGroup
+from curie.vm_group import VMGroup
 from curie.testing.util import mock_cluster
 from curie.vm import Vm
 

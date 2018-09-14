@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='curie_server_state.proto',
   package='nutanix.curie',
   syntax='proto2',
-  serialized_pb=_b('\n\x18\x63urie_server_state.proto\x12\rnutanix.curie\x1a\x16\x63urie_extensions.proto\"\x92\x1c\n\rCurieSettings\x12\x36\n\x08\x63lusters\x18\x01 \x03(\x0b\x32$.nutanix.curie.CurieSettings.Cluster\x1a\xbe\x07\n\x0b\x43lusterNode\x12\n\n\x02id\x18\x01 \x02(\t\x12n\n node_out_of_band_management_info\x18\x02 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo\x12L\n\rnode_hardware\x18\x03 \x01(\x0b\x32\x35.nutanix.curie.CurieSettings.ClusterNode.NodeHardware\x1a\xe5\x04\n\x1bNodeOutOfBandManagementInfo\x12}\n\x0einterface_type\x18\x01 \x01(\x0e\x32R.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.InterfaceType:\x11kUnknownInterface\x12k\n\x06vendor\x18\x02 \x01(\x0e\x32K.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.Vendor:\x0ekUnknownVendor\x12\x16\n\x08username\x18\x03 \x01(\tB\x04\x80\x88\'\x01\x12\x16\n\x08password\x18\x04 \x01(\tB\x04\x80\x88\'\x01\x12\x12\n\nip_address\x18\x05 \x01(\t\x12{\n\x17interface_specific_info\x18\x06 \x01(\x0b\x32Z.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.InterfaceSpecificInfo\x1a\x17\n\x15InterfaceSpecificInfo\"F\n\rInterfaceType\x12\x15\n\x11kUnknownInterface\x10\x00\x12\t\n\x05kIpmi\x10\x01\x12\x08\n\x04kPdu\x10\x02\x12\t\n\x05kNone\x10\x03\"8\n\x06Vendor\x12\x12\n\x0ekUnknownVendor\x10\x00\x12\x0f\n\x0bkSupermicro\x10\x01\x12\t\n\x05kDell\x10\x02\x1a}\n\x0cNodeHardware\x12\x18\n\x10num_cpu_packages\x18\x01 \x01(\x05\x12\x15\n\rnum_cpu_cores\x18\x02 \x01(\x05\x12\x17\n\x0fnum_cpu_threads\x18\x03 \x01(\x05\x12\x0e\n\x06\x63pu_hz\x18\x04 \x01(\x03\x12\x13\n\x0bmemory_size\x18\x05 \x01(\x03\x1a\x87\x14\n\x07\x43luster\x12\x14\n\x0c\x63luster_name\x18\x01 \x02(\t\x12[\n\x17\x63luster_hypervisor_info\x18\x02 \x02(\x0b\x32:.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo\x12h\n\x1e\x63luster_management_server_info\x18\x03 \x02(\x0b\x32@.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo\x12W\n\x15\x63luster_software_info\x18\x04 \x02(\x0b\x32\x38.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo\x12?\n\rcluster_nodes\x18\x05 \x03(\x0b\x32(.nutanix.curie.CurieSettings.ClusterNode\x1a\x85\x03\n\x15\x43lusterHypervisorInfo\x12T\n\x08\x65sx_info\x18\x01 \x01(\x0b\x32\x42.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.EsxInfo\x12Z\n\x0bhyperv_info\x18\x02 \x01(\x0b\x32\x45.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.HypervInfo\x12T\n\x08\x61hv_info\x18\x03 \x01(\x0b\x32\x42.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.AhvInfo\x1a)\n\x07\x45sxInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x12\r\n\x05\x62uild\x18\x02 \x03(\t\x1a\x1d\n\nHypervInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x1a\x1a\n\x07\x41hvInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x1a\x87\n\n\x1b\x43lusterManagementServerInfo\x12\x62\n\x0cvcenter_info\x18\x01 \x01(\x0b\x32L.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.VcenterInfo\x12^\n\nprism_info\x18\x02 \x01(\x0b\x32J.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.PrismInfo\x12Z\n\x08vmm_info\x18\x03 \x01(\x0b\x32H.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.VmmInfo\x1a\x8c\x02\n\x0bVcenterInfo\x12\x14\n\x0cvcenter_host\x18\x01 \x02(\t\x12\x1a\n\x0cvcenter_user\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x1e\n\x10vcenter_password\x18\x03 \x02(\tB\x04\x80\x88\'\x01\x12\x1f\n\x17vcenter_datacenter_name\x18\x04 \x02(\t\x12\x1c\n\x14vcenter_cluster_name\x18\x05 \x02(\t\x12\x1e\n\x16vcenter_datastore_name\x18\x06 \x02(\t\x12\x1c\n\x14vcenter_network_name\x18\x07 \x01(\t\x12\x17\n\x0fvcenter_version\x18\x08 \x01(\t\x12\x15\n\rvcenter_build\x18\t \x01(\t\x1a\xdf\x01\n\tPrismInfo\x12\x12\n\nprism_host\x18\x01 \x01(\t\x12\x1c\n\x0eprism_username\x18\x02 \x01(\tB\x04\x80\x88\'\x01\x12\x1c\n\x0eprism_password\x18\x03 \x01(\tB\x04\x80\x88\'\x01\x12\x1b\n\x13prism_datacenter_id\x18\x04 \x01(\t\x12\x18\n\x10prism_cluster_id\x18\x05 \x01(\t\x12\x1a\n\x12prism_container_id\x18\x06 \x01(\t\x12\x18\n\x10prism_network_id\x18\x07 \x01(\t\x12\x15\n\rprism_version\x18\x08 \x01(\t\x1a\xd6\x03\n\x07VmmInfo\x12\x10\n\x08vmm_host\x18\x01 \x02(\t\x12\x1b\n\rvmm_host_user\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x1f\n\x11vmm_host_password\x18\x03 \x02(\tB\x04\x80\x88\'\x01\x12\x12\n\nvmm_server\x18\x04 \x02(\t\x12\x16\n\x08vmm_user\x18\x05 \x02(\tB\x04\x80\x88\'\x01\x12\x1a\n\x0cvmm_password\x18\x06 \x02(\tB\x04\x80\x88\'\x01\x12\x1a\n\x12vmm_library_server\x18\x07 \x02(\t\x12%\n\x17vmm_library_server_user\x18\x08 \x02(\tB\x04\x80\x88\'\x01\x12)\n\x1bvmm_library_server_password\x18\t \x02(\tB\x04\x80\x88\'\x01\x12%\n\x1dvmm_library_server_share_name\x18\n \x02(\t\x12%\n\x1dvmm_library_server_share_path\x18\x0b \x02(\t\x12\x18\n\x10vmm_cluster_name\x18\x0c \x02(\t\x12\x16\n\x0evmm_share_name\x18\r \x02(\t\x12\x16\n\x0evmm_share_path\x18\x0e \x02(\t\x12\x18\n\x10vmm_network_name\x18\x0f \x01(\t\x12\x13\n\x0bvmm_version\x18\x10 \x01(\t\x1a\xf2\x03\n\x13\x43lusterSoftwareInfo\x12Z\n\x0cnutanix_info\x18\x01 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.NutanixInfo\x12T\n\tvsan_info\x18\x02 \x01(\x0b\x32\x41.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.VsanInfo\x12Z\n\x0cgeneric_info\x18\x03 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.GenericInfo\x1a\xa0\x01\n\x0bNutanixInfo\x12\x18\n\nprism_user\x18\x01 \x02(\tB\x04\x80\x88\'\x01\x12\x1c\n\x0eprism_password\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x0f\n\x07version\x18\x03 \x01(\t\x12\x14\n\x0c\x63luster_uuid\x18\x04 \x01(\t\x12\x1e\n\x16\x63luster_incarnation_id\x18\x05 \x01(\x04\x12\x12\n\nprism_host\x18\x06 \x01(\t\x1a\n\n\x08VsanInfo\x1a\x1e\n\x0bGenericInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\"\xf0\x01\n\x0cServerStatus\x12<\n\x06status\x18\x01 \x01(\x0e\x32\".nutanix.curie.ServerStatus.Status:\x08kUnknown\x12\x17\n\x08is_ready\x18\x02 \x01(\x08:\x05\x66\x61lse\"\x88\x01\n\x06Status\x12\x0c\n\x08kUnknown\x10\x00\x12\x12\n\x0ekUninitialized\x10\x01\x12\x11\n\rkInitializing\x10\x02\x12\x10\n\x0ckInitialized\x10\x03\x12\x1a\n\x16kAwaitingEncryptionKey\x10\x04\x12\x0f\n\x0bkRecovering\x10\x05\x12\n\n\x06kReady\x10\x06\"x\n\x10\x43urieServerState\x12.\n\x08settings\x18\x01 \x02(\x0b\x32\x1c.nutanix.curie.CurieSettings\x12\x18\n\x10to_stop_test_ids\x18\x02 \x03(\x03\x12\x1a\n\x12to_remove_test_ids\x18\x03 \x03(\x03')
+  serialized_pb=_b('\n\x18\x63urie_server_state.proto\x12\rnutanix.curie\x1a\x16\x63urie_extensions.proto\"\xa4\x1c\n\rCurieSettings\x12\x36\n\x08\x63lusters\x18\x01 \x03(\x0b\x32$.nutanix.curie.CurieSettings.Cluster\x1a\xd0\x07\n\x0b\x43lusterNode\x12\n\n\x02id\x18\x01 \x02(\t\x12n\n node_out_of_band_management_info\x18\x02 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo\x12L\n\rnode_hardware\x18\x03 \x01(\x0b\x32\x35.nutanix.curie.CurieSettings.ClusterNode.NodeHardware\x12\x10\n\x08svm_addr\x18\x04 \x01(\t\x1a\xe5\x04\n\x1bNodeOutOfBandManagementInfo\x12}\n\x0einterface_type\x18\x01 \x01(\x0e\x32R.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.InterfaceType:\x11kUnknownInterface\x12k\n\x06vendor\x18\x02 \x01(\x0e\x32K.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.Vendor:\x0ekUnknownVendor\x12\x16\n\x08username\x18\x03 \x01(\tB\x04\x80\x88\'\x01\x12\x16\n\x08password\x18\x04 \x01(\tB\x04\x80\x88\'\x01\x12\x12\n\nip_address\x18\x05 \x01(\t\x12{\n\x17interface_specific_info\x18\x06 \x01(\x0b\x32Z.nutanix.curie.CurieSettings.ClusterNode.NodeOutOfBandManagementInfo.InterfaceSpecificInfo\x1a\x17\n\x15InterfaceSpecificInfo\"F\n\rInterfaceType\x12\x15\n\x11kUnknownInterface\x10\x00\x12\t\n\x05kIpmi\x10\x01\x12\x08\n\x04kPdu\x10\x02\x12\t\n\x05kNone\x10\x03\"8\n\x06Vendor\x12\x12\n\x0ekUnknownVendor\x10\x00\x12\x0f\n\x0bkSupermicro\x10\x01\x12\t\n\x05kDell\x10\x02\x1a}\n\x0cNodeHardware\x12\x18\n\x10num_cpu_packages\x18\x01 \x01(\x05\x12\x15\n\rnum_cpu_cores\x18\x02 \x01(\x05\x12\x17\n\x0fnum_cpu_threads\x18\x03 \x01(\x05\x12\x0e\n\x06\x63pu_hz\x18\x04 \x01(\x03\x12\x13\n\x0bmemory_size\x18\x05 \x01(\x03\x1a\x87\x14\n\x07\x43luster\x12\x14\n\x0c\x63luster_name\x18\x01 \x02(\t\x12[\n\x17\x63luster_hypervisor_info\x18\x02 \x02(\x0b\x32:.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo\x12h\n\x1e\x63luster_management_server_info\x18\x03 \x02(\x0b\x32@.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo\x12W\n\x15\x63luster_software_info\x18\x04 \x02(\x0b\x32\x38.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo\x12?\n\rcluster_nodes\x18\x05 \x03(\x0b\x32(.nutanix.curie.CurieSettings.ClusterNode\x1a\x85\x03\n\x15\x43lusterHypervisorInfo\x12T\n\x08\x65sx_info\x18\x01 \x01(\x0b\x32\x42.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.EsxInfo\x12Z\n\x0bhyperv_info\x18\x02 \x01(\x0b\x32\x45.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.HypervInfo\x12T\n\x08\x61hv_info\x18\x03 \x01(\x0b\x32\x42.nutanix.curie.CurieSettings.Cluster.ClusterHypervisorInfo.AhvInfo\x1a)\n\x07\x45sxInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x12\r\n\x05\x62uild\x18\x02 \x03(\t\x1a\x1d\n\nHypervInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x1a\x1a\n\x07\x41hvInfo\x12\x0f\n\x07version\x18\x01 \x03(\t\x1a\x87\n\n\x1b\x43lusterManagementServerInfo\x12\x62\n\x0cvcenter_info\x18\x01 \x01(\x0b\x32L.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.VcenterInfo\x12^\n\nprism_info\x18\x02 \x01(\x0b\x32J.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.PrismInfo\x12Z\n\x08vmm_info\x18\x03 \x01(\x0b\x32H.nutanix.curie.CurieSettings.Cluster.ClusterManagementServerInfo.VmmInfo\x1a\x8c\x02\n\x0bVcenterInfo\x12\x14\n\x0cvcenter_host\x18\x01 \x02(\t\x12\x1a\n\x0cvcenter_user\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x1e\n\x10vcenter_password\x18\x03 \x02(\tB\x04\x80\x88\'\x01\x12\x1f\n\x17vcenter_datacenter_name\x18\x04 \x02(\t\x12\x1c\n\x14vcenter_cluster_name\x18\x05 \x02(\t\x12\x1e\n\x16vcenter_datastore_name\x18\x06 \x02(\t\x12\x1c\n\x14vcenter_network_name\x18\x07 \x01(\t\x12\x17\n\x0fvcenter_version\x18\x08 \x01(\t\x12\x15\n\rvcenter_build\x18\t \x01(\t\x1a\xdf\x01\n\tPrismInfo\x12\x12\n\nprism_host\x18\x01 \x01(\t\x12\x1c\n\x0eprism_username\x18\x02 \x01(\tB\x04\x80\x88\'\x01\x12\x1c\n\x0eprism_password\x18\x03 \x01(\tB\x04\x80\x88\'\x01\x12\x1b\n\x13prism_datacenter_id\x18\x04 \x01(\t\x12\x18\n\x10prism_cluster_id\x18\x05 \x01(\t\x12\x1a\n\x12prism_container_id\x18\x06 \x01(\t\x12\x18\n\x10prism_network_id\x18\x07 \x01(\t\x12\x15\n\rprism_version\x18\x08 \x01(\t\x1a\xd6\x03\n\x07VmmInfo\x12\x10\n\x08vmm_host\x18\x01 \x02(\t\x12\x1b\n\rvmm_host_user\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x1f\n\x11vmm_host_password\x18\x03 \x02(\tB\x04\x80\x88\'\x01\x12\x12\n\nvmm_server\x18\x04 \x02(\t\x12\x16\n\x08vmm_user\x18\x05 \x02(\tB\x04\x80\x88\'\x01\x12\x1a\n\x0cvmm_password\x18\x06 \x02(\tB\x04\x80\x88\'\x01\x12\x1a\n\x12vmm_library_server\x18\x07 \x02(\t\x12%\n\x17vmm_library_server_user\x18\x08 \x02(\tB\x04\x80\x88\'\x01\x12)\n\x1bvmm_library_server_password\x18\t \x02(\tB\x04\x80\x88\'\x01\x12%\n\x1dvmm_library_server_share_name\x18\n \x02(\t\x12%\n\x1dvmm_library_server_share_path\x18\x0b \x02(\t\x12\x18\n\x10vmm_cluster_name\x18\x0c \x02(\t\x12\x16\n\x0evmm_share_name\x18\r \x02(\t\x12\x16\n\x0evmm_share_path\x18\x0e \x02(\t\x12\x18\n\x10vmm_network_name\x18\x0f \x01(\t\x12\x13\n\x0bvmm_version\x18\x10 \x01(\t\x1a\xf2\x03\n\x13\x43lusterSoftwareInfo\x12Z\n\x0cnutanix_info\x18\x01 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.NutanixInfo\x12T\n\tvsan_info\x18\x02 \x01(\x0b\x32\x41.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.VsanInfo\x12Z\n\x0cgeneric_info\x18\x03 \x01(\x0b\x32\x44.nutanix.curie.CurieSettings.Cluster.ClusterSoftwareInfo.GenericInfo\x1a\xa0\x01\n\x0bNutanixInfo\x12\x18\n\nprism_user\x18\x01 \x02(\tB\x04\x80\x88\'\x01\x12\x1c\n\x0eprism_password\x18\x02 \x02(\tB\x04\x80\x88\'\x01\x12\x0f\n\x07version\x18\x03 \x01(\t\x12\x14\n\x0c\x63luster_uuid\x18\x04 \x01(\t\x12\x1e\n\x16\x63luster_incarnation_id\x18\x05 \x01(\x04\x12\x12\n\nprism_host\x18\x06 \x01(\t\x1a\n\n\x08VsanInfo\x1a\x1e\n\x0bGenericInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\"\xf0\x01\n\x0cServerStatus\x12<\n\x06status\x18\x01 \x01(\x0e\x32\".nutanix.curie.ServerStatus.Status:\x08kUnknown\x12\x17\n\x08is_ready\x18\x02 \x01(\x08:\x05\x66\x61lse\"\x88\x01\n\x06Status\x12\x0c\n\x08kUnknown\x10\x00\x12\x12\n\x0ekUninitialized\x10\x01\x12\x11\n\rkInitializing\x10\x02\x12\x10\n\x0ckInitialized\x10\x03\x12\x1a\n\x16kAwaitingEncryptionKey\x10\x04\x12\x0f\n\x0bkRecovering\x10\x05\x12\n\n\x06kReady\x10\x06\"x\n\x10\x43urieServerState\x12.\n\x08settings\x18\x01 \x02(\x0b\x32\x1c.nutanix.curie.CurieSettings\x12\x18\n\x10to_stop_test_ids\x18\x02 \x03(\x03\x12\x1a\n\x12to_remove_test_ids\x18\x03 \x03(\x03')
   ,
   dependencies=[curie__extensions__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -52,8 +52,8 @@ _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_INTERFACETYPE = _descript
   ],
   containing_type=None,
   options=None,
-  serialized_start=845,
-  serialized_end=915,
+  serialized_start=863,
+  serialized_end=933,
 )
 _sym_db.RegisterEnumDescriptor(_CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_INTERFACETYPE)
 
@@ -78,8 +78,8 @@ _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_VENDOR = _descriptor.Enum
   ],
   containing_type=None,
   options=None,
-  serialized_start=917,
-  serialized_end=973,
+  serialized_start=935,
+  serialized_end=991,
 )
 _sym_db.RegisterEnumDescriptor(_CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_VENDOR)
 
@@ -120,8 +120,8 @@ _SERVERSTATUS_STATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=3777,
-  serialized_end=3913,
+  serialized_start=3795,
+  serialized_end=3931,
 )
 _sym_db.RegisterEnumDescriptor(_SERVERSTATUS_STATUS)
 
@@ -145,8 +145,8 @@ _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_INTERFACESPECIFICINFO = _
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=820,
-  serialized_end=843,
+  serialized_start=838,
+  serialized_end=861,
 )
 
 _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO = _descriptor.Descriptor(
@@ -212,8 +212,8 @@ _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=360,
-  serialized_end=973,
+  serialized_start=378,
+  serialized_end=991,
 )
 
 _CURIESETTINGS_CLUSTERNODE_NODEHARDWARE = _descriptor.Descriptor(
@@ -270,8 +270,8 @@ _CURIESETTINGS_CLUSTERNODE_NODEHARDWARE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=975,
-  serialized_end=1100,
+  serialized_start=993,
+  serialized_end=1118,
 )
 
 _CURIESETTINGS_CLUSTERNODE = _descriptor.Descriptor(
@@ -302,6 +302,13 @@ _CURIESETTINGS_CLUSTERNODE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
+    _descriptor.FieldDescriptor(
+      name='svm_addr', full_name='nutanix.curie.CurieSettings.ClusterNode.svm_addr', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
   ],
   extensions=[
   ],
@@ -315,7 +322,7 @@ _CURIESETTINGS_CLUSTERNODE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=142,
-  serialized_end=1100,
+  serialized_end=1118,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_ESXINFO = _descriptor.Descriptor(
@@ -351,8 +358,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_ESXINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1779,
-  serialized_end=1820,
+  serialized_start=1797,
+  serialized_end=1838,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_HYPERVINFO = _descriptor.Descriptor(
@@ -381,8 +388,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_HYPERVINFO = _descriptor.Descriptor
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1822,
-  serialized_end=1851,
+  serialized_start=1840,
+  serialized_end=1869,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_AHVINFO = _descriptor.Descriptor(
@@ -411,8 +418,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO_AHVINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1853,
-  serialized_end=1879,
+  serialized_start=1871,
+  serialized_end=1897,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO = _descriptor.Descriptor(
@@ -455,8 +462,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERHYPERVISORINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1490,
-  serialized_end=1879,
+  serialized_start=1508,
+  serialized_end=1897,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_VCENTERINFO = _descriptor.Descriptor(
@@ -541,8 +548,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_VCENTERINFO = _descriptor.Des
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2202,
-  serialized_end=2470,
+  serialized_start=2220,
+  serialized_end=2488,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_PRISMINFO = _descriptor.Descriptor(
@@ -620,8 +627,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_PRISMINFO = _descriptor.Descr
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2473,
-  serialized_end=2696,
+  serialized_start=2491,
+  serialized_end=2714,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_VMMINFO = _descriptor.Descriptor(
@@ -755,8 +762,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO_VMMINFO = _descriptor.Descrip
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2699,
-  serialized_end=3169,
+  serialized_start=2717,
+  serialized_end=3187,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO = _descriptor.Descriptor(
@@ -799,8 +806,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERMANAGEMENTSERVERINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1882,
-  serialized_end=3169,
+  serialized_start=1900,
+  serialized_end=3187,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_NUTANIXINFO = _descriptor.Descriptor(
@@ -864,8 +871,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_NUTANIXINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3466,
-  serialized_end=3626,
+  serialized_start=3484,
+  serialized_end=3644,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_VSANINFO = _descriptor.Descriptor(
@@ -887,8 +894,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_VSANINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3628,
-  serialized_end=3638,
+  serialized_start=3646,
+  serialized_end=3656,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_GENERICINFO = _descriptor.Descriptor(
@@ -917,8 +924,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO_GENERICINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3640,
-  serialized_end=3670,
+  serialized_start=3658,
+  serialized_end=3688,
 )
 
 _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO = _descriptor.Descriptor(
@@ -961,8 +968,8 @@ _CURIESETTINGS_CLUSTER_CLUSTERSOFTWAREINFO = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3172,
-  serialized_end=3670,
+  serialized_start=3190,
+  serialized_end=3688,
 )
 
 _CURIESETTINGS_CLUSTER = _descriptor.Descriptor(
@@ -1019,8 +1026,8 @@ _CURIESETTINGS_CLUSTER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1103,
-  serialized_end=3670,
+  serialized_start=1121,
+  serialized_end=3688,
 )
 
 _CURIESETTINGS = _descriptor.Descriptor(
@@ -1050,7 +1057,7 @@ _CURIESETTINGS = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=68,
-  serialized_end=3670,
+  serialized_end=3688,
 )
 
 
@@ -1088,8 +1095,8 @@ _SERVERSTATUS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3673,
-  serialized_end=3913,
+  serialized_start=3691,
+  serialized_end=3931,
 )
 
 
@@ -1133,8 +1140,8 @@ _CURIESERVERSTATE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3915,
-  serialized_end=4035,
+  serialized_start=3933,
+  serialized_end=4053,
 )
 
 _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO_INTERFACESPECIFICINFO.containing_type = _CURIESETTINGS_CLUSTERNODE_NODEOUTOFBANDMANAGEMENTINFO

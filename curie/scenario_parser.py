@@ -11,10 +11,10 @@ import yaml
 from jinja2 import Template
 
 from curie.scenario import Phase, Scenario
-from curie.test import steps as steps_module
-from curie.test.result.base_result import BaseResult
-from curie.test.vm_group import VMGroup
-from curie.test.workload import Workload
+from curie import steps as steps_module
+from curie.result.base_result import BaseResult
+from curie.vm_group import VMGroup
+from curie.workload import Workload
 from curie.exception import CurieTestException
 
 log = logging.getLogger(__name__)
@@ -143,7 +143,7 @@ def _parse_steps(scenario, data):
   """
   steps = []
   for phase in Phase:
-    phase_name = phase.name[1:].lower()
+    phase_name = phase.name.lower()
     steps_data = data.get(phase_name, [])
     if not steps_data and phase_name in ["setup", "run"]:
       raise ValueError("Phase '%s' is required" % phase_name)

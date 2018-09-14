@@ -34,30 +34,25 @@ message CurieTestMetadata {
 
 message CurieTestStatus {
   enum Type {
-    option allow_alias = true;
-    kNotStarted = 0;
-    kQueued = 0;  // Deprecated - alias for kNotStarted
-    kExecuting = 1;
-    kRunning = 1;  // Deprecated - alias for kExecuting
-    kStopping = 2;
-    kFailing = 3;
-    kSucceeded = 4;
-    kFailed = 5;
-    kStopped = 6;
-    kCanceled = 7;
-    kInternalError = 8;
+    NOT_STARTED = 0;
+    EXECUTING = 1;
+    STOPPING = 2;
+    FAILING = 3;
+    SUCCEEDED = 4;
+    FAILED = 5;
+    STOPPED = 6;
+    CANCELED = 7;
+    INTERNAL_ERROR = 8;
   }
 }
 
-// Phases a test can be in while it has status kRunning.
+// Phases a test can be in while it has status RUNNING.
 message CurieTestPhase {
   enum Type {
-    option allow_alias = true;
-    kPreSetup = 0;
-    kPrecondition = 0;  // Deprecated - alias for kPreSetup
-    kSetup = 1;
-    kRun = 2;
-    kTeardown = 3;
+    PRE_SETUP = 0;
+    SETUP = 1;
+    RUN = 2;
+    TEARDOWN = 3;
   }
 }
 
@@ -66,11 +61,10 @@ message CurieTestStepProto {
   // Phase that this step is a part of.
   required CurieTestPhase.Type phase = 1;
 
-  // Step number.
   required int32 step_num = 2;
-
-  // Step description.
   optional string step_description = 3;
+  optional string status = 4;
+  optional string message = 5;
 
   // Estimate on how long this step will take to run. This should only be
   // filled in if a step has specific information about how long it will
@@ -133,6 +127,14 @@ message CurieTestResult {
   // e.g. oltp_configurable_test_oltp_0_iops refers to the first node's IOPS
   // data for the OLTP configurable test.
   required string result_id = 4;
+
+  // The result_hint is a string that is provided to the user on how to
+  // interpret the result.
+  optional string result_hint = 5;
+
+  // The result_expected_value is an integer that can be used to optionally
+  // hint at the expected numerical outcome of the result.
+  optional double result_expected_value = 6;
 
   // Exactly one of the following should be set.
   message DataRaw {
@@ -253,6 +255,16 @@ message CurieTestResult {
     repeated XYAnnotation xy_annotations = 102;
   }
   optional Data2D data_2d = 101;
+
+  // Value bands are named regions that can indicate upper and lower predicted
+  // ranges. For example a 95% prediction band.
+  message ValueBand  {
+    required string name = 1;
+    optional double lower = 2;
+    optional double upper = 3;
+  }
+  repeated ValueBand result_value_bands = 102;
+
 }
 
 message CurieTestInfo {

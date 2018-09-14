@@ -283,6 +283,17 @@ class TestNutanixRestApiClient(unittest.TestCase):
     self.assertEqual(header, {})
 
   @mock.patch(
+    "curie.nutanix_rest_api_client.NutanixRestApiClient.get_nutanix_metadata")
+  def test_get_pc_uuid_header_over_5_8(self,
+                                       get_nutanix_metadata, **kwargs):
+    get_nutanix_metadata.return_value = NutanixMetadata(
+      version="el7.3-release-euphrates-5.8-stable-"
+              "4c26d1af153833c54b67536fb0a4044e6e8c1b07")
+    client = NutanixRestApiClient(self.HOSTS[0], "user", "password")
+    header = client._get_pc_uuid_header()
+    self.assertEqual(header, {})
+
+  @mock.patch(
     "curie.nutanix_rest_api_client.NutanixRestApiClient.get_pc_uuid")
   @mock.patch(
     "curie.nutanix_rest_api_client.NutanixRestApiClient.get_nutanix_metadata")

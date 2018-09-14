@@ -1,11 +1,11 @@
 # Curie
 
 ## About
-Curie is the core component within [Nutanix X-Ray](http://www.nutanix.com/xray) that 
-interprets and executes scenarios against virtualized infrastructures. It 
-interfaces with the infrastructure under testto deploy virtual machines, manage
-workloads, and introduce other events such as snapshots, migrations, and also 
-failures.
+Curie is the core component within [Nutanix X-Ray](http://www.nutanix.com/xray)
+that interprets and executes scenarios against virtualized infrastructures. It 
+interfaces with the infrastructure under test to deploy virtual machines,
+manage workloads, and introduce other events such as snapshots, migrations, and
+also failures.
 
 ### License
 Curie is made available under the [MIT license](LICENSE.md).

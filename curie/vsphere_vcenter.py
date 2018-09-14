@@ -154,33 +154,31 @@ class VsphereVcenter(object):
   def __enter__(self):
     CHECK(self.__si is None)
     log.trace("Connecting to vCenter %s", self.__host)
-    invalid_login = False
     max_retries = 5
-    for xx in range(max_retries):
+    for attempt_num in range(1, max_retries + 1):
       try:
         self.__si = SmartConnectNoSSL(host=self.__host,
                                       user=self.__user,
                                       pwd=self.__password)
         break
-      except vim.fault.InvalidLogin, ex:
+      except vim.fault.InvalidLogin as ex:
         # Note: evidently vCenter seems to have a bug where it can transiently
         # fail with InvalidLogin faults even when presented with valid
         # credentials. Retry in the presence of such faults to guard against
         # this.
-        invalid_login = True
-        log.error("Authentication error on vCenter %s: %s, %s (attempt %d/%d)",
-                  self.__host, ex, traceback.format_exc(), xx + 1, max_retries)
+        if attempt_num == max_retries:
+          raise
+        else:
+          log.exception("Authentication error on vCenter %s (attempt %d/%d)",
+                        self.__host, attempt_num, max_retries)
       except Exception:
-        log.exception("Error connecting to vCenter %s (attempt %d/%d)",
-                      self.__host, xx + 1, max_retries)
-        time.sleep(1)
-    if not self.__si:
-      if invalid_login:
-        raise CurieTestException("Invalid vCenter credentials for %s" %
-                                  self.__host)
-      else:
-        raise CurieTestException("Could not connect to vCenter %s" %
-                                  self.__host)
+        if attempt_num == max_retries:
+          raise
+        else:
+          log.exception("Error connecting to vCenter %s (attempt %d/%d)",
+                        self.__host, attempt_num, max_retries)
+          time.sleep(1)
+    assert self.__si
     log.trace("Connected to vCenter %s", self.__host)
     return self
 
@@ -239,8 +237,17 @@ class VsphereVcenter(object):
     for vim_datacenter_network in vim_datacenter.network:
       if vim_datacenter_network.name == network_name:
         return vim_datacenter_network
+    raise CurieTestException(
+      cause="No network with name '%s' found in vSphere datacenter '%s'." %
+            (network_name, vim_datacenter.name),
+      impact="VMs can not be mapped to the chosen network.",
+      corrective_action=
+      "Please check that a network with name '%s' is configured for the "
+      "datacenter '%s', and is available to each of the ESXi hosts." %
+      (network_name, vim_datacenter.name)
+    )
 
-  def lookup_datastore(self, vim_cluster, datastore_name):
+  def lookup_datastore(self, vim_cluster, datastore_name, host_name=None):
     CHECK(self.__si is not None)
     vim_datastore_candidate = None
     for vim_datastore in vim_cluster.datastore:
@@ -253,8 +260,17 @@ class VsphereVcenter(object):
       log.warning("Datastore %s not found on cluster %s in vCenter %s",
                   datastore_name, vim_cluster.name, self.__host)
       return None
+    if host_name is None:
+      vim_hosts = vim_cluster.host
+    else:
+      for vim_host in vim_cluster.host:
+        if vim_host.name == host_name:
+          vim_hosts = [vim_host]
+          break
+      else:
+        raise CurieTestException("Host '%s' not found" % host_name)
     # Check that datastore is mounted on all nodes in the cluster.
-    for vim_host in vim_cluster.host:
+    for vim_host in vim_hosts:
       datastore_mounted = False
       for vim_datastore in vim_host.datastore:
         if vim_datastore.name == datastore_name:
@@ -509,21 +525,35 @@ class VsphereVcenter(object):
       CurieException: if any of the nodes already specified in 'metadata'
       aren't found in the cluster.
     """
-    node_id_set = set([vim_host.name for vim_host in vim_cluster.host])
+    vsphere_node_ids = sorted([vim_host.name for vim_host in vim_cluster.host])
+    metadata_node_ids = [node.id for node in metadata.cluster_nodes]
     # TODO: check that all nodes in 'node_id_set' are part of the same cluster
     # (e.g., the same Nutanix cluster).
     node_id_metadata_map = {}
     # Verify existing node IDs in 'metadata' and add existing node ID metadata
     # to 'node_id_metadata_map'.
+    for vcenter_node_id in vsphere_node_ids:
+      if vcenter_node_id not in metadata_node_ids:
+        raise CurieTestException(
+          cause=
+          "Node with ID '%s' found in the vSphere cluster '%s', but not in "
+          "the Curie cluster metadata." % (vcenter_node_id, vim_cluster.name),
+          impact=
+          "The configured cluster can not be used because the nodes chosen "
+          "for this cluster do not exactly match the nodes in vSphere.",
+          corrective_action=
+          "Please check that all of the nodes in the vSphere cluster are part "
+          "of the cluster configuration. For example, if the vSphere cluster "
+          "has four nodes, please check that all four nodes are being used in "
+          "the Curie cluster configuration. If the nodes are managed in "
+          "vSphere by FQDN, please check that the nodes were also added by "
+          "their FQDN to the Curie cluster metadata."
+        )
     for cluster_node in metadata.cluster_nodes:
-      if cluster_node.id not in node_id_set:
-        raise CurieException(CurieError.kInvalidParameter,
-                              "Invalid node %s for cluster %s" %
-                              (cluster_node.id, vim_cluster.name))
       node_id_metadata_map[cluster_node.id] = cluster_node
     # Add minimal node ID metadata for remaining nodes to
     # 'node_id_metadata_map'.
-    for node_id in sorted(node_id_set):
+    for node_id in vsphere_node_ids:
       if node_id not in node_id_metadata_map:
         node_id_metadata_map[node_id] = metadata.cluster_nodes.add()
         node_id_metadata_map[node_id].id = node_id
@@ -1925,7 +1955,7 @@ class VsphereVcenter(object):
       vim_hosts (list<vim.HostSystem>) vim objects for hosts to reconnect.
       timeout_secs (number): Timeout for disconnect tasks.
       raise_on_error (bool): Optional. If True, raise an exception if any
-        tasks enter a terminal state other than 'kSucceeded'. (Default False).
+        tasks enter a terminal state other than 'SUCCEEDED'. (Default False).
 
     Returns:
       dict<str, VsphereTaskDescriptor> Map of host IDs to descriptors for
@@ -1956,7 +1986,7 @@ class VsphereVcenter(object):
       vim_hosts (list<vim.HostSystem>) vim objects for hosts to reconnect.
       timeout_secs (number): Timeout for reconnect tasks.
       raise_on_error (bool): Optional. If True, raise an exception if any
-        tasks enter a terminal state other than 'kSucceeded'. (Default False).
+        tasks enter a terminal state other than 'SUCCEEDED'. (Default False).
 
     Returns:
       dict<str, VsphereTaskDescriptor> Map of host IDs to descriptors for

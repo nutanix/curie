@@ -8,13 +8,13 @@ import inspect
 import os
 import unittest
 
-from curie.test.node_failure_test.node_failure_test import NodeFailureTest
-from curie.test.node_failure_data_loss_test.node_failure_data_loss_test \
+from curie.node_failure_test.node_failure_test import NodeFailureTest
+from curie.node_failure_data_loss_test.node_failure_data_loss_test \
   import NodeFailureDataLossTest
-from curie.test.oltp_dss_test.oltp_dss_test import OltpDssTest
-from curie.test.oltp_vdi_test.oltp_vdi_test import OltpVdiTest
-from curie.test.oltp_snapshot_test.oltp_snapshot_test import OltpSnapshotTest
-from curie.test.rolling_upgrade_test.rolling_upgrade_test import RollingUpgradeTest
+from curie.oltp_dss_test.oltp_dss_test import OltpDssTest
+from curie.oltp_vdi_test.oltp_vdi_test import OltpVdiTest
+from curie.oltp_snapshot_test.oltp_snapshot_test import OltpSnapshotTest
+from curie.rolling_upgrade_test.rolling_upgrade_test import RollingUpgradeTest
 
 # Top directory of repository.
 TOP = os.path.realpath("%s/../../" %

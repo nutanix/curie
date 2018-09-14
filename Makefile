@@ -119,6 +119,7 @@ clean:
 	rm -f $(CURDIR)/$(GENERATED_FILES)
 	rm -f $(CURDIR)/$(PROTO_PY_TARGETS)
 	rm -f $(CODEGEN_MARKER_CIM) $(CODEGEN_MARKER_YACC) $(CODEGEN_MARKER)
+	-find . -type f -name "*.py[co]" -exec rm -r "{}" \;
 
 #==============================================================================
 # Docker

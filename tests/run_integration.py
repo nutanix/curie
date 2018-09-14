@@ -14,13 +14,17 @@ from curie import curie_server_state_pb2, curie_types_pb2
 from curie import curie_test_pb2
 from curie import log as curie_log
 from curie.proto_util import proto_patch_encryption_support
+from curie.scenario import Scenario
+from curie.steps.cluster import CleanUp
 from curie.testing import environment, util
 
 
 def cluster_cleanup():
   if not gflags.FLAGS.is_parsed():
     gflags.FLAGS(sys.argv)
-  util.cluster_from_json(gflags.FLAGS.cluster_config_path).cleanup()
+  cluster = util.cluster_from_json(gflags.FLAGS.cluster_config_path)
+  cluster.update_metadata(False)
+  CleanUp(Scenario(cluster=cluster))()
 
 
 if __name__ == "__main__":
@@ -51,8 +55,8 @@ if __name__ == "__main__":
   cluster_cleanup()
   try:
     # Replace tags inside parentheses with an empty string, e.g.
-    # 'integration/test/steps/test_meta.py (AHV)' becomes
-    # 'integration/test/steps/test_meta.py'.
+    # 'integration/steps/test_meta.py (AHV)' becomes
+    # 'integration/steps/test_meta.py'.
     path = re.sub(r'\s+\(.*\)\s*', r'', gflags.FLAGS.path)
     success = nose.run(argv=["nosetests", path,
                              "-w", environment.tests_dir(),

@@ -102,10 +102,11 @@ class FioConfiguration(collections.OrderedDict):
     parameter_file = FioConfiguration()
     section_name = None
     fh.seek(0, 0)
+    # ';' and '#' denote comments for fio
+    whitespace_or_comment_re = re.compile("^\s*(;.*|#.*)?$")
     for line in fh:
       line = line.strip()
-      # If the line is blank, skip it.
-      if not line:
+      if whitespace_or_comment_re.match(line):
         continue
       # Check if this line is the start of a new section.
       m = FioConfiguration.section_re.search(line)

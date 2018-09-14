@@ -133,12 +133,12 @@ class Node(object):
     self._node_ip = None
 
     self.__node_util = get_node_management_util(cluster.metadata())(self)
-    self.__oob_util = get_power_management_util(
+    self.power_management_util = get_power_management_util(
       self.metadata().node_out_of_band_management_info)
 
   def __str__(self):
-    return "%s %s (%s)" % (type(self).__name__, self._node_id,
-                           self._node_index)
+    return "%s %s (index: %s)" % (type(self).__name__, self._node_id,
+                                  self._node_index)
 
   def __eq__(self, other):
     return (self.cluster() == other.cluster() and
@@ -161,6 +161,14 @@ class Node(object):
 
   def metadata(self):
     return self._cluster.metadata().cluster_nodes[self._node_index]
+
+  def power_management_is_configured(self):
+    if not self.power_management_util:
+      return False
+    elif isinstance(self.power_management_util, NullOobUtil):
+      return False
+    else:
+      return True
 
   @classmethod
   def get_management_software_property_name_map(cls):
@@ -282,7 +290,7 @@ class Node(object):
     Returns:
       (bool) True if node is powered on, else False.
     """
-    return self.__oob_util.is_powered_on()
+    return self.power_management_util.is_powered_on()
 
   @oob
   def power_on(self):
@@ -295,7 +303,7 @@ class Node(object):
       all other errors.
     """
     log.debug("Powering on node '%s'", self._node_id)
-    if not self.__oob_util.power_on():
+    if not self.power_management_util.power_on():
       raise CurieException(
           CurieError.kInternalError,
           "Failed to power on node '%s'" % self._node_id)
@@ -317,7 +325,7 @@ class Node(object):
       all other errors.
     """
     log.debug("Powering off node '%s'", self._node_id)
-    if not self.__oob_util.power_off():
+    if not self.power_management_util.power_off():
       raise CurieException(
           CurieError.kInternalError,
           "Failed to power off node '%s'" % self._node_id)
@@ -354,6 +362,6 @@ class Node(object):
       CurieTestException if no suitable metadata exists, CurieException on
       all other errors.
     """
-    if not self.__oob_util.power_cycle(async=async):
+    if not self.power_management_util.power_cycle(async=async):
       raise CurieException(CurieError.kInternalError,
                             "Failed to power cycle node '%s'" % self._node_id)

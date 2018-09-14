@@ -18,10 +18,8 @@ from curie.curie_metrics_pb2 import CurieMetric
 from curie.exception import CurieException, CurieTestException
 from curie.goldimage_manager import GoldImageManager
 from curie.log import CHECK, CHECK_EQ
-from curie.name_util import NameUtil
 from curie.node import NodePropertyNames
 from curie.nutanix_rest_api_client import NutanixRestApiClient
-from curie.test.scenario_util import ScenarioUtil
 from curie.util import CurieUtil
 from curie.vm import VmParams
 from curie.vsphere_node import VsphereNode
@@ -556,46 +554,11 @@ class VsphereCluster(Cluster):
       vcenter.disable_drs_vms(vim_cluster, vim_vms)
 
   def cleanup(self, test_ids=()):
-    """Shutdown and remove all curie VMs from this cluster.
-
-    Raises:
-      CurieException if cluster is not ready for cleanup after 40 minutes.
+    """Remove all Curie templates and state from this cluster.
     """
     log.info("Cleaning up state on cluster %s", self.metadata().cluster_name)
 
-    if not ScenarioUtil.prereq_runtime_cluster_is_ready(self):
-      ScenarioUtil.prereq_runtime_cluster_is_ready_fix(self)
-
     with self._open_vcenter_connection() as vcenter:
-      vim_cluster = self._lookup_vim_cluster(vcenter)
-      log.info("Cleaning up state on cluster %s", vim_cluster.name)
-      vms = self.__vms_internal(vcenter)
-      vm_names = [vm.vm_name() for vm in vms]
-      test_vm_names, _ = NameUtil.filter_test_vm_names(vm_names,
-                                                       test_ids)
-      while True:
-        try:
-          vcenter.power_off_vms(vim_cluster, test_vm_names)
-          vcenter.delete_vms(vim_cluster, test_vm_names, ignore_errors=True)
-          break
-        except CurieTestException:
-          log.warning("Error powering off and deleting %d VMs on %s",
-                      len(test_vm_names), self.__cluster_name, exc_info=True)
-          old_num_vms = len(test_vm_names)
-          vms = self.__vms_internal(vcenter)
-          vm_names = [vm.vm_name() for vm in vms]
-          test_vm_names, _ = NameUtil.filter_test_vm_names(vm_names,
-                                                           test_ids)
-          new_num_vms = len(test_vm_names)
-          if new_num_vms < old_num_vms:
-            # It's possible some VMs to power off/delete were already in the
-            # process of being deleted and those deletions completed as we were
-            # trying to do the same above. If this is the case, retry the
-            # powering off and deletion of the remaining VMs.
-            log.info("%d VMs (previously %d VMs) left to power off/delete on "
-                     "%s", new_num_vms, old_num_vms, self.__cluster_name)
-          else:
-            raise
       self._cleanup_datastore(vcenter)
       cluster_software_info = self._metadata.cluster_software_info
       if cluster_software_info.HasField("nutanix_info"):
@@ -663,14 +626,15 @@ class VsphereCluster(Cluster):
   #
   #----------------------------------------------------------------------------
 
-  def datastore_visible(self, datastore_name):
+  def datastore_visible(self, datastore_name, host_name=None):
     """
     Returns True if the datastore with name 'datastore_name' is visible on all
     nodes of the cluster.
     """
     with self._open_vcenter_connection() as vcenter:
       vim_cluster = self._lookup_vim_cluster(vcenter)
-      vim_datastore = vcenter.lookup_datastore(vim_cluster, datastore_name)
+      vim_datastore = vcenter.lookup_datastore(vim_cluster, datastore_name,
+                                               host_name=host_name)
       return vim_datastore is not None
 
   def refresh_datastores(self):

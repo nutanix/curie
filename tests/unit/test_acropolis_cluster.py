@@ -1,5 +1,6 @@
 # Copyright (c) 2016 Nutanix Inc. All rights reserved.
 #
+import json
 import sys
 import threading
 import time
@@ -54,6 +55,8 @@ class TestAcropolisCluster(unittest.TestCase):
       self.cluster_metadata.cluster_management_server_info.prism_info
     prism_info.prism_host = "fake-prism-host.fake.address"
     prism_info.prism_cluster_id = "fake-cluster-id"
+    prism_info.prism_host = "fake-prism-host.fake.address"
+    prism_info.prism_cluster_id = "fake-cluster-id"
 
   def tearDown(self):
     pass
@@ -65,8 +68,8 @@ class TestAcropolisCluster(unittest.TestCase):
       "name": name
     }
 
-  def _get_curie_test_vm_json(self, name="MockVM", uuid="1-a-b-c", is_cvm=False,
-                               host_id=1, ip="1.2.3.4"):
+  def _get_curie_test_vm_json(self, name="MockVM", uuid="1-a-b-c",
+                              is_cvm=False, host_id=1, ip="1.2.3.4"):
     return {
       "controllerVm": is_cvm,
       "hostUuid": host_id,
@@ -97,6 +100,199 @@ class TestAcropolisCluster(unittest.TestCase):
     self.assertEquals(
       nm.version,
       cluster._metadata.cluster_software_info.nutanix_info.version)
+
+  def test_nodes(self):
+    cluster_nodes = self.cluster_metadata.cluster_nodes
+    for index in range(1, 5):
+      node = cluster_nodes.add()
+      node.id = "aaaaaaaa-aaaa-aaaa-0001-00000000000%d" % index
+      oob_info = node.node_out_of_band_management_info
+      oob_info.interface_type = oob_info.kIpmi
+
+    cluster = AcropolisCluster(self.cluster_metadata)
+    hosts_get_data = {
+      "metadata": {},
+      "entities": [
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000001",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000001",
+          "name": "RTP-Test-14-1",
+          "serviceVMExternalIP": "10.60.4.71",
+          "hypervisorAddress": "10.60.5.71",
+          "controllerVmBackplaneIp": "10.60.4.71",
+          "managementServerName": "10.60.5.71",
+          "ipmiAddress": "10.60.2.71",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000002",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000002",
+          "name": "RTP-Test-14-2",
+          "serviceVMExternalIP": "10.60.4.72",
+          "hypervisorAddress": "10.60.5.72",
+          "controllerVmBackplaneIp": "10.60.4.72",
+          "managementServerName": "10.60.5.72",
+          "ipmiAddress": "10.60.2.72",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000003",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000003",
+          "name": "RTP-Test-14-3",
+          "serviceVMExternalIP": "10.60.4.73",
+          "hypervisorAddress": "10.60.5.73",
+          "controllerVmBackplaneIp": "10.60.4.73",
+          "managementServerName": "10.60.5.73",
+          "ipmiAddress": "10.60.2.73",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000004",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000004",
+          "name": "RTP-Test-14-4",
+          "serviceVMExternalIP": "10.60.4.74",
+          "hypervisorAddress": "10.60.5.74",
+          "controllerVmBackplaneIp": "10.60.4.74",
+          "managementServerName": "10.60.5.74",
+          "ipmiAddress": "10.60.2.74",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+      ]
+    }
+
+    def fake_hosts_get_by_id(host_id, *args, **kwargs):
+      for host in hosts_get_data["entities"]:
+        if host["uuid"] == host_id:
+          return host
+      raise RuntimeError("Host '%s' not found" % host_id)
+
+    with mock.patch("curie.nutanix_rest_api_client.requests.Session.get") as m_get, \
+         mock.patch("curie.nutanix_rest_api_client.NutanixRestApiClient.hosts_get_by_id", wraps=fake_hosts_get_by_id) as m_hosts_get_by_id:
+      m_response = mock.Mock()
+      m_response.status_code = 200
+      m_response.content = json.dumps(hosts_get_data)
+      m_response.json.return_value = hosts_get_data
+      m_get.return_value = m_response
+
+      nodes = cluster.nodes()
+
+      for index, (node, entity) in enumerate(zip(nodes, hosts_get_data["entities"])):
+        self.assertIsInstance(node, AcropolisNode)
+        self.assertEqual(index, node.node_index())
+        self.assertEqual(entity["uuid"], node.node_id())
+        self.assertEqual(entity["hypervisorAddress"], node.node_ip())
+
+  def test_nodes_by_ip_address(self):
+    cluster_nodes = self.cluster_metadata.cluster_nodes
+    for index in range(1, 5):
+      node = cluster_nodes.add()
+      node.id = "10.60.5.%d" % (70 + index)
+      oob_info = node.node_out_of_band_management_info
+      oob_info.interface_type = oob_info.kIpmi
+    cluster = AcropolisCluster(self.cluster_metadata)
+    hosts_get_data = {
+      "metadata": {},
+      "entities": [
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000001",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000001",
+          "name": "RTP-Test-14-1",
+          "serviceVMExternalIP": "10.60.4.71",
+          "hypervisorAddress": "10.60.5.71",
+          "controllerVmBackplaneIp": "10.60.4.71",
+          "managementServerName": "10.60.5.71",
+          "ipmiAddress": "10.60.2.71",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000002",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000002",
+          "name": "RTP-Test-14-2",
+          "serviceVMExternalIP": "10.60.4.72",
+          "hypervisorAddress": "10.60.5.72",
+          "controllerVmBackplaneIp": "10.60.4.72",
+          "managementServerName": "10.60.5.72",
+          "ipmiAddress": "10.60.2.72",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000003",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000003",
+          "name": "RTP-Test-14-3",
+          "serviceVMExternalIP": "10.60.4.73",
+          "hypervisorAddress": "10.60.5.73",
+          "controllerVmBackplaneIp": "10.60.4.73",
+          "managementServerName": "10.60.5.73",
+          "ipmiAddress": "10.60.2.73",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+        {
+          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000004",
+          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000004",
+          "name": "RTP-Test-14-4",
+          "serviceVMExternalIP": "10.60.4.74",
+          "hypervisorAddress": "10.60.5.74",
+          "controllerVmBackplaneIp": "10.60.4.74",
+          "managementServerName": "10.60.5.74",
+          "ipmiAddress": "10.60.2.74",
+          "hypervisorState": "kAcropolisNormal",
+          "state": "NORMAL",
+          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
+          "stats": {},
+          "usageStats": {},
+        },
+      ]
+    }
+
+    def fake_hosts_get_by_id(host_id, *args, **kwargs):
+      for host in hosts_get_data["entities"]:
+        if host["uuid"] == host_id:
+          return host
+      raise RuntimeError("Host '%s' not found" % host_id)
+
+    with mock.patch("curie.nutanix_rest_api_client.requests.Session.get") as m_get, \
+         mock.patch("curie.nutanix_rest_api_client.NutanixRestApiClient.hosts_get_by_id", wraps=fake_hosts_get_by_id) as m_hosts_get_by_id:
+      m_response = mock.Mock()
+      m_response.status_code = 200
+      m_response.content = json.dumps(hosts_get_data)
+      m_response.json.return_value = hosts_get_data
+      m_get.return_value = m_response
+
+      nodes = cluster.nodes()
+
+      for index, (node, entity) in enumerate(zip(nodes, hosts_get_data["entities"])):
+        self.assertIsInstance(node, AcropolisNode)
+        self.assertEqual(index, node.node_index())
+        self.assertEqual(entity["uuid"], node.node_id())
+        self.assertEqual(entity["hypervisorAddress"], node.node_ip())
 
   @mock.patch.object(NutanixRestApiClient, "hosts_stats_get_by_id")
   def test_collect_performance_stats(self, mock_hosts_stats):

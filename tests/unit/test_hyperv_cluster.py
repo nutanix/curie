@@ -10,6 +10,7 @@ from curie.curie_server_state_pb2 import CurieSettings
 from curie.exception import CurieTestException
 from curie.hyperv_cluster import HyperVCluster
 from curie.hyperv_node import HyperVNode
+from curie.hyperv_unix_vm import HyperVUnixVM
 from curie.node import Node
 from curie.vm import Vm
 from curie.vmm_client import VmmClientException
@@ -20,6 +21,13 @@ class TestHyperVCluster(unittest.TestCase):
     self.cluster_metadata = CurieSettings.Cluster()
     self.cluster_metadata.cluster_name = "Fake Cluster"
     self.cluster_metadata.cluster_hypervisor_info.hyperv_info.SetInParent()
+    cluster_nodes_count = 2
+    nodes = [mock.Mock(spec=Node) for _ in xrange(cluster_nodes_count)]
+    for id, node in enumerate(nodes):
+      node.node_id.return_value = "fake_node_%d" % id
+      node.node_index.return_value = id
+      curr_node = self.cluster_metadata.cluster_nodes.add()
+      curr_node.id = "fake_node_%d" % id
     vmm_info = self.cluster_metadata.cluster_management_server_info.vmm_info
     vmm_info.vmm_server = "fake_vmm_server_address"
     vmm_info.vmm_user = "fake_vmm_username"
@@ -32,6 +40,60 @@ class TestHyperVCluster(unittest.TestCase):
     vmm_info.vmm_share_name = "fake_share_name"
     vmm_info.vmm_share_path = "\\\\fake\\path\\to\\fake_share_name"
     vmm_info.vmm_network_name = "fake_network"
+
+  @mock.patch("curie.hyperv_cluster.HyperVUnixVM", spec=True)
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  def test_get_vms_duplicate_removed(
+      self, m_VmmClient, m_HyperVUnixVM):
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "PowerOff",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_vm_2",
+        "name": "Fake VM 1",
+        "status": "PowerOff",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_0",
+      },
+    ]
+
+    cluster = HyperVCluster(self.cluster_metadata)
+    vms = cluster.vms()
+    self.assertEqual(len(vms), 2)
+    self.assertIsInstance(vms[0], HyperVUnixVM)
+
+    fake_vm_0_params = m_HyperVUnixVM.call_args_list[0][0][0]
+    fake_vm_1_params = m_HyperVUnixVM.call_args_list[1][0][0]
+    m_HyperVUnixVM.assert_has_calls([
+      mock.call(fake_vm_0_params, {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      }),
+      mock.call(fake_vm_1_params, {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "PowerOff",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_0",
+      }),
+    ])
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
   def test_get_power_state_for_vms(self, m_VmmClient):
@@ -111,9 +173,13 @@ class TestHyperVCluster(unittest.TestCase):
   @mock.patch("curie.hyperv_cluster.socket.socket")
   @mock.patch("curie.hyperv_cluster.GoldImageManager")
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_import_vm(self, m_time_sleep, m_VmmClient, m_GoldImageManager,
-                     m_socket):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_import_vm(self, m_get_deadline_secs, m_time, m_VmmClient,
+                     m_GoldImageManager, m_socket):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
     m_sock = m_socket.return_value
     m_sock.getsockname.return_value = ["1.2.3.4", 1234]
     m_GoldImageManager.get_goldimage_filename.side_effect = [
@@ -169,7 +235,7 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
     target_dir = "fake_cluster" + "\\" + vm.vm_name()
     m_vmm_client.upload_image.assert_called_once_with(
-      ["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
+      goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
       goldimage_target_dir=target_dir,
       transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
@@ -179,12 +245,16 @@ class TestHyperVCluster(unittest.TestCase):
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network")
     m_vmm_client.update_library.assert_called_once_with(
-      "\\\\fake\\library\\share\\path\\fake_goldimage_name\\"
-      "fake_goldimage_name.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_goldimage_name\\"
+                          "fake_goldimage_name.vhdx")
     m_vmm_client.create_vm.assert_called_once_with(
-      "fake_cluster", None, [{"vm_name": "Fake Imported VM",
-                              "node_id": "fake_node_0"}],
-      "\\\\fake\\path\\to\\fake_share_name", [16, 16, 16, 16, 16, 16])
+      cluster_name="fake_cluster",
+      vm_template_name=None,
+      vm_host_map=[{"vm_name": "Fake Imported VM",
+                    "node_id": "fake_node_0"}],
+      vm_datastore_path="\\\\fake\\path\\to\\fake_share_name",
+      data_disks=[16, 16, 16, 16, 16, 16],
+      differencing_disks_path=None)
 
   @mock.patch("curie.hyperv_cluster.socket.socket")
   @mock.patch("curie.hyperv_cluster.GoldImageManager")
@@ -233,9 +303,15 @@ class TestHyperVCluster(unittest.TestCase):
   @mock.patch("curie.hyperv_cluster.socket.socket")
   @mock.patch("curie.hyperv_cluster.GoldImageManager")
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_create_vm(
-      self, m_time_sleep, m_VmmClient, m_GoldImageManager, m_socket):
+      self, m_get_deadline_secs, m_time, m_VmmClient, m_GoldImageManager,
+      m_socket):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     m_sock = m_socket.return_value
     m_sock.getsockname.return_value = ["1.2.3.4", 1234]
     m_GoldImageManager.get_goldimage_filename.side_effect = [
@@ -291,89 +367,24 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
     target_dir = "fake_cluster" + "\\" + vm.vm_name()
     m_vmm_client.upload_image.assert_called_once_with(
-      ["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
+      goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
       goldimage_target_dir=target_dir,
+      disk_name='Fake Imported VM.vhdx',
       transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
       "fake_cluster", "Fake Imported VM", "fake_node_0",
       "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "fake_goldimage_name.vhdx",
+      "Fake Imported VM.vhdx",
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network", 1, 1024)
     m_vmm_client.update_library.assert_called_once_with(
-      "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "fake_goldimage_name.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
+                          "Fake Imported VM.vhdx")
     m_vmm_client.create_vm.assert_called_once_with(
-      "fake_cluster", "Fake Imported VM", [{"vm_name": "Fake Imported VM",
-                                            "node_id": "fake_node_0"}],
-      "\\\\fake\\path\\to\\fake_share_name", ())
-
-  @mock.patch("curie.hyperv_cluster.socket.socket")
-  @mock.patch("curie.hyperv_cluster.GoldImageManager")
-  @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_create_vm_duplicate(
-      self, m_time_sleep, m_VmmClient, m_GoldImageManager, m_socket):
-    m_sock = m_socket.return_value
-    m_sock.getsockname.return_value = ["1.2.3.4", 1234]
-    m_GoldImageManager.get_goldimage_filename.side_effect = [
-      "fake_goldimage_name.vhdx.zip", "fake_goldimage_name.vhdx"]
-
-    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
-    m_vmm_client.vm_get_job_status.side_effect = [
-      # upload_image
-      [{"task_id": "0", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "0", "task_type": "vmm", "state": "completed"}],
-      # update_library
-      [{"task_id": "1", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "1", "task_type": "vmm", "state": "completed"}],
-      # create_vm
-      [{"task_id": "3", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "3", "task_type": "vmm", "state": "completed"}],
-    ]
-    m_vmm_client.upload_image.__name__ = "upload_image"
-    m_vmm_client.upload_image.return_value = [
-      {"task_id": "0", "task_type": "vmm"}]
-    m_vmm_client.update_library.__name__ = "update_library"
-    m_vmm_client.update_library.return_value = [
-      {"task_id": "1", "task_type": "vmm"}]
-    m_vmm_client.create_vm_template.__name__ = "create_vm_template"
-    m_vmm_client.create_vm_template.return_value = [
-      {"task_id": "2", "task_type": "vmm"}]
-    m_vmm_client.create_vm.__name__ = "create_vm"
-    m_vmm_client.create_vm.return_value = [
-      {"task_id": "3", "task_type": "vmm"}]
-    m_vmm_client.get_vms.__name__ = "get_vms"
-    m_vmm_client.get_vms.return_value = [
-      {
-        "id": "fake_some_other_vm",
-        "name": "Fake Some Other VM",
-        "status": "PowerOff",
-        "ips": ["169.254.1.1"],
-        "node_id": "fake_node_0",
-      },
-      {
-        "id": "fake_imported_vm",
-        "name": "Fake Imported VM",
-        "status": "PowerOff",
-        "ips": ["169.254.1.2"],
-        "node_id": "fake_node_0",
-      },
-      {
-        "id": "fake_imported_vm",
-        "name": "Fake Imported VM",
-        "status": "PowerOff",
-        "ips": ["169.254.1.2"],
-        "node_id": "fake_node_0",
-      },
-    ]
-
-    cluster = HyperVCluster(self.cluster_metadata)
-    with self.assertRaises(CurieTestException) as ar:
-      cluster.create_vm("/fake/goldimages/directory", "fake_goldimage_name",
-                        "Fake Imported VM", node_id="fake_node_0")
-    self.assertEqual(str(ar.exception),
-                     "Duplicate VM 'Fake Imported VM' found in self.vms()")
+      cluster_name="fake_cluster", vm_template_name="Fake Imported VM",
+      vm_host_map=[{"vm_name": "Fake Imported VM", "node_id": "fake_node_0"}],
+      vm_datastore_path="\\\\fake\\path\\to\\fake_share_name", data_disks=(),
+      differencing_disks_path=None)
 
   @mock.patch("curie.hyperv_cluster.socket.socket")
   @mock.patch("curie.hyperv_cluster.GoldImageManager")
@@ -422,9 +433,15 @@ class TestHyperVCluster(unittest.TestCase):
   @mock.patch("curie.hyperv_cluster.socket.socket")
   @mock.patch("curie.hyperv_cluster.GoldImageManager")
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_create_vm_parameters(
-      self, m_time_sleep, m_VmmClient, m_GoldImageManager, m_socket):
+      self, m_get_deadline_secs, m_time, m_VmmClient, m_GoldImageManager,
+      m_socket):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     m_sock = m_socket.return_value
     m_sock.getsockname.return_value = ["1.2.3.4", 1234]
     m_GoldImageManager.get_goldimage_filename.side_effect = [
@@ -481,30 +498,140 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
     target_dir = "fake_cluster" + "\\" + vm.vm_name()
     m_vmm_client.upload_image.assert_called_once_with(
-      ["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
-      goldimage_target_dir=target_dir, transfer_type="bits")
+      goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
+      goldimage_target_dir=target_dir, disk_name='Fake Imported VM.vhdx', transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
       "fake_cluster", "Fake Imported VM", "fake_node_0",
       "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "fake_goldimage_name.vhdx",
+      "Fake Imported VM.vhdx",
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network", 3, 1234)
     m_vmm_client.update_library.assert_called_once_with(
-      "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "fake_goldimage_name.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
+                          "Fake Imported VM.vhdx")
     m_vmm_client.create_vm.assert_called_once_with(
-      "fake_cluster", "Fake Imported VM", [{"vm_name": "Fake Imported VM",
-                                            "node_id": "fake_node_0"}],
-      "\\\\fake\\path\\to\\fake_share_name", [1, 2, 3, 4])
+      cluster_name="fake_cluster",
+      vm_template_name="Fake Imported VM",
+      vm_host_map=[{"vm_name": "Fake Imported VM",
+                    "node_id": "fake_node_0"}],
+      vm_datastore_path="\\\\fake\\path\\to\\fake_share_name",
+      data_disks=[1, 2, 3, 4],
+      differencing_disks_path=None)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_delete_vms(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_delete_duplicate_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
+    vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
+    for index, m_vm in enumerate(vms):
+      m_vm.vm_id.return_value = "fake_vm_%d" % index
+      m_vm.vm_name.return_value = "Fake VM %d" % index
+
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": False
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": True
+      },
+      {
+        "id": "duplicate_fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": False
+      },
+    ]
+
+    m_vmm_client.vm_get_job_status.side_effect = [
+      # refresh duplicate VMs
+      [{"task_id": "0", "task_type": "vmm", "state": "running"},
+       {"task_id": "1", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "completed"},
+       {"task_id": "1", "task_type": "vmm", "state": "completed"}],
+      # delete all VMs
+      [{"task_id": "0", "task_type": "vmm", "state": "running"},
+       {"task_id": "1", "task_type": "vmm", "state": "running"},
+       {"task_id": "2", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "completed"},
+       {"task_id": "1", "task_type": "vmm", "state": "completed"},
+       {"task_id": "2", "task_type": "vmm", "state": "completed"}],
+    ]
+    m_vmm_client.refresh_vms.__name__ = "vms_delete"
+    m_vmm_client.refresh_vms.side_effect = [
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
+    ]
+    m_vmm_client.vms_delete.__name__ = "vms_delete"
+    m_vmm_client.vms_delete.side_effect = [
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"},
+       {"task_id": "2", "task_type": "vmm"}],
+    ]
+
+    cluster = HyperVCluster(self.cluster_metadata)
+    cluster.delete_vms(vms)
+
+    m_vmm_client.refresh_vms.assert_has_calls([
+      mock.call(cluster_name="fake_cluster",
+                vm_input_list=[{"vm_id": "duplicate_fake_vm_1"}, {"vm_id": "fake_vm_1"}]),
+    ], any_order=True)
+
+    m_vmm_client.vms_delete.assert_has_calls([
+      mock.call(cluster_name="fake_cluster",
+                vm_ids=["duplicate_fake_vm_1", "fake_vm_0", "fake_vm_1"]),
+    ], any_order=True)
+
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_delete_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     for index, m_vm in enumerate(vms):
       m_vm.vm_id.return_value = "fake_vm_%d" % index
 
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": False
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": True
+      },
+    ]
+
     m_vmm_client.vm_get_job_status.side_effect = [
       [{"task_id": "0", "task_type": "vmm", "state": "running"},
        {"task_id": "1", "task_type": "vmm", "state": "completed"}],
@@ -513,28 +640,51 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.vms_delete.__name__ = "vms_delete"
     m_vmm_client.vms_delete.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.delete_vms(vms)
 
     m_vmm_client.vms_delete.assert_has_calls([
-      mock.call("fake_cluster", ["fake_vm_0"]),
-      mock.call("fake_cluster", ["fake_vm_1"]),
+      mock.call(cluster_name="fake_cluster",
+                vm_ids=["fake_vm_0", "fake_vm_1"]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
   @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_delete_vms_exception_raises_CurieTestException(
-      self, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 0.1
+      self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     for index, m_vm in enumerate(vms):
       m_vm.vm_id.return_value = "fake_vm_%d" % index
 
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": False
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": True
+      },
+    ]
     m_vmm_client.vms_delete.__name__ = "vms_delete"
     m_vmm_client.vms_delete.side_effect = VmmClientException("Boom")
 
@@ -547,15 +697,38 @@ class TestHyperVCluster(unittest.TestCase):
                      "waiting for tasks: Boom")
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
   @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_delete_vms_raises_exception_on_empty_task_list(
-      self, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 0.1
+      self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     for index, m_vm in enumerate(vms):
       m_vm.vm_id.return_value = "fake_vm_%d" % index
 
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": False
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+        "is_dynamic_optimization_available": True
+      },
+    ]
     m_vmm_client.vms_delete.__name__ = "vms_delete"
     m_vmm_client.vms_delete.return_value = []
 
@@ -565,14 +738,17 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(str(ar.exception),
                      "Unhandled exception occurred in HypervTaskPoller while "
-                     "waiting for tasks: Expected exactly 1 task in response "
+                     "waiting for tasks: Expected exactly 2 task(s) in response "
                      "- got []")
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
   @mock.patch("curie.task.TaskPoller.get_deadline_secs")
-  @mock.patch("curie.task.time.sleep")
-  def test_migrate_vms(self, m_time_sleep, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 5
+  def test_migrate_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     # Both VMs start on Node 0, and will be moved to Nodes 1 and 2.
     vms[0].vm_id.return_value = "fake_vm_0"
@@ -605,87 +781,43 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.vms_set_possible_owners_for_vms.__name__ = \
       "vms_set_possible_owners_for_vms"
     m_vmm_client.vms_set_possible_owners_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-      [{"task_id": "4", "task_type": "vmm"}],
-      [{"task_id": "5", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "4", "task_type": "vmm"},
+       {"task_id": "5", "task_type": "vmm"}],
     ]
     m_vmm_client.migrate_vm.__name__ = "migrate_vm"
     m_vmm_client.migrate_vm.side_effect = [
-      [{"task_id": "2", "task_type": "vmm"}],
-      [{"task_id": "3", "task_type": "vmm"}],
+      [{"task_id": "2", "task_type": "vmm"},
+       {"task_id": "3", "task_type": "vmm"}],
     ]
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.migrate_vms(vms, nodes)
 
     m_vmm_client.vms_set_possible_owners_for_vms.assert_has_calls([
-      mock.call("fake_cluster", [
-        {"id": "fake_vm_0",
-         "possible_owners": ["fake_node_0", "fake_node_1"]},
-      ]),
-      mock.call("fake_cluster", [
-        {"id": "fake_vm_1",
-         "possible_owners": ["fake_node_0", "fake_node_2"]},
-      ]),
+      mock.call(cluster_name="fake_cluster",
+                task_req_list=[
+                  {"id": "fake_vm_0",
+                   "possible_owners": ["fake_node_0", "fake_node_1"]},
+                  {"id": "fake_vm_1",
+                   "possible_owners": ["fake_node_0", "fake_node_2"]},
+                ]),
     ], any_order=True)
     m_vmm_client.vms_set_possible_owners_for_vms.assert_has_calls([
-      mock.call("fake_cluster", [
-        {"id": "fake_vm_1", "possible_owners": ["fake_node_2"]},
-      ]),
-      mock.call("fake_cluster", [
-        {"id": "fake_vm_0", "possible_owners": ["fake_node_1"]},
-      ]),
+      mock.call(cluster_name="fake_cluster",
+                task_req_list=[
+                  {"id": "fake_vm_0", "possible_owners": ["fake_node_1"]},
+                  {"id": "fake_vm_1", "possible_owners": ["fake_node_2"]},
+                ]),
     ], any_order=True)
     m_vmm_client.migrate_vm.assert_has_calls([
-      mock.call("fake_cluster", [
-        {"vm_id": "fake_vm_1", "node_id": "fake_node_2"}],
-        "\\\\fake\\path\\to\\fake_share_name"),
-      mock.call("fake_cluster", [
-        {"vm_id": "fake_vm_0", "node_id": "fake_node_1"}],
-        "\\\\fake\\path\\to\\fake_share_name"),
+      mock.call(cluster_name="fake_cluster",
+                vm_host_map=[
+                  {"vm_id": "fake_vm_0", "node_id": "fake_node_1"},
+                  {"vm_id": "fake_vm_1", "node_id": "fake_node_2"},
+                ],
+                vm_datastore_path="\\\\fake\\path\\to\\fake_share_name"),
     ], any_order=True)
-
-  @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
-  def test_migrate_vms_raises_exception_on_empty_task_list(
-      self, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 2
-    vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
-    # Both VMs start on Node 0, and will be moved to Nodes 1 and 2.
-    vms[0].vm_id.return_value = "fake_vm_0"
-    vms[0].node_id.return_value = "fake_node_0"
-    vms[1].vm_id.return_value = "fake_vm_1"
-    vms[1].node_id.return_value = "fake_node_0"
-
-    nodes = [mock.Mock(spec=Node) for _ in xrange(2)]
-    nodes[0].node_id.return_value = "fake_node_1"
-    nodes[1].node_id.return_value = "fake_node_2"
-
-    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
-    m_vmm_client.vm_get_job_status.side_effect = [
-      # set_possible_owners_for_vms tasks
-      [{"task_id": "0", "task_type": "vmm", "state": "running"},
-       {"task_id": "1", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "0", "task_type": "vmm", "state": "completed"},
-       {"task_id": "1", "task_type": "vmm", "state": "completed"}],
-    ]
-    m_vmm_client.vms_set_possible_owners_for_vms.__name__ = \
-      "vms_set_possible_owners_for_vms"
-    m_vmm_client.vms_set_possible_owners_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-    ]
-    m_vmm_client.migrate_vm.__name__ = "migrate_vm"
-    m_vmm_client.migrate_vm.return_value = []
-
-    cluster = HyperVCluster(self.cluster_metadata)
-    with self.assertRaises(CurieTestException) as ar:
-      cluster.migrate_vms(vms, nodes)
-
-    self.assertEqual(str(ar.exception),
-                     "Unhandled exception occurred in HypervTaskPoller while "
-                     "waiting for tasks: Expected exactly 1 task in response "
-                     "- got []")
 
   def test_collect_performance_stats(self):
     # TODO(ryan.hardin) Implement this.
@@ -754,8 +886,13 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(cluster.is_drs_enabled(), False)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_disable_ha_vms(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_disable_ha_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].node_id.return_value = "fake_node_0"
@@ -773,26 +910,30 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.vms_set_possible_owners_for_vms.__name__ = \
       "vms_set_possible_owners_for_vms"
     m_vmm_client.vms_set_possible_owners_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.disable_ha_vms(vms)
 
     m_vmm_client.vms_set_possible_owners_for_vms.assert_has_calls([
-      mock.call("fake_cluster", [{"id": "fake_vm_0",
-                                  "possible_owners": ["fake_node_0"]}]),
-      mock.call("fake_cluster", [{"id": "fake_vm_1",
-                                  "possible_owners": ["fake_node_1"]}]),
+      mock.call(cluster_name="fake_cluster",
+                task_req_list=[{"id": "fake_vm_0",
+                                "possible_owners": ["fake_node_0"]},
+                               {"id": "fake_vm_1",
+                                "possible_owners": ["fake_node_1"]}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
   @mock.patch("curie.task.TaskPoller.get_deadline_secs")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
   def test_disable_ha_vms_raises_exception_on_empty_task_list(
-      self, m_time_sleep, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 0.1
+      self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].node_id.return_value = "fake_node_0"
@@ -817,12 +958,17 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(str(ar.exception),
                      "Unhandled exception occurred in HypervTaskPoller while "
-                     "waiting for tasks: Expected exactly 1 task in response "
+                     "waiting for tasks: Expected exactly 2 task(s) in response "
                      "- got []")
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_snapshot_vms(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_snapshot_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].node_id.return_value = "fake_node_0"
@@ -839,8 +985,8 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.vms_set_snapshot.__name__ = "vms_set_snapshot"
     m_vmm_client.vms_set_snapshot.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
@@ -848,14 +994,20 @@ class TestHyperVCluster(unittest.TestCase):
 
     m_vmm_client.vms_set_snapshot.assert_has_calls([
       mock.call(
-        "fake_cluster", [{"vm_id": "fake_vm_0", "name": "fake_snapshot_0"}]),
-      mock.call(
-        "fake_cluster", [{"vm_id": "fake_vm_1", "name": "fake_snapshot_0"}]),
+        cluster_name="fake_cluster",
+        task_req_list=[{"vm_id": "fake_vm_0", "name": "fake_snapshot_0"},
+                       {"vm_id": "fake_vm_1", "name": "fake_snapshot_0"}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_snapshot_vms_description(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_snapshot_vms_description(self, m_get_deadline_secs, m_time,
+                                    m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].node_id.return_value = "fake_node_0"
@@ -872,8 +1024,8 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.vms_set_snapshot.__name__ = "vms_set_snapshot"
     m_vmm_client.vms_set_snapshot.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
@@ -881,16 +1033,23 @@ class TestHyperVCluster(unittest.TestCase):
 
     m_vmm_client.vms_set_snapshot.assert_has_calls([
       mock.call(
-        "fake_cluster", [{"vm_id": "fake_vm_0", "name": "fake_snapshot_0",
-                          "description": "Oh, snap!"}]),
-      mock.call(
-        "fake_cluster", [{"vm_id": "fake_vm_1", "name": "fake_snapshot_0",
-                          "description": "Oh, snap!"}]),
+        cluster_name="fake_cluster",
+        task_req_list=[{"vm_id": "fake_vm_0", "name": "fake_snapshot_0",
+                        "description": "Oh, snap!"},
+                       {"vm_id": "fake_vm_1", "name": "fake_snapshot_0",
+                        "description": "Oh, snap!"}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
   @mock.patch("curie.hyperv_cluster.time.sleep")
-  def test_power_on_vms(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_power_on_vms(self, m_get_deadline_secs, m_time,
+                        m_hyperv_cluster_time_sleep, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(3)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].is_powered_on.return_value = False
@@ -903,18 +1062,15 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.vm_get_job_status.side_effect = [
       # vms_set_power_state_for_vms
       [{"task_id": "0", "task_type": "vmm", "state": "running"},
-       {"task_id": "1", "task_type": "vmm", "state": "running"},
        {"task_id": "2", "task_type": "vmm", "state": "running"}],
       [{"task_id": "0", "task_type": "vmm", "state": "completed"},
-       {"task_id": "1", "task_type": "vmm", "state": "completed"},
        {"task_id": "2", "task_type": "vmm", "state": "completed"}],
     ]
     m_vmm_client.vms_set_power_state_for_vms.__name__ = \
       "vms_set_power_state_for_vms"
     m_vmm_client.vms_set_power_state_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-      [{"task_id": "2", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "2", "task_type": "vmm"}],
     ]
 
     for vm in vms:
@@ -926,8 +1082,9 @@ class TestHyperVCluster(unittest.TestCase):
       cluster.power_on_vms(vms)
 
     m_vmm_client.vms_set_power_state_for_vms.assert_has_calls([
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_0", "power_state": "on"}]),
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_2", "power_state": "on"}]),
+      mock.call(cluster_name="fake_cluster",
+                task_req_list=[{"vm_id": "fake_vm_0", "power_state": "on"},
+                               {"vm_id": "fake_vm_2", "power_state": "on"}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.time")
@@ -984,7 +1141,6 @@ class TestHyperVCluster(unittest.TestCase):
       [{"task_id": "2", "task_type": "vmm"}],
     ]
 
-
     cluster = HyperVCluster(self.cluster_metadata)
     vms = cluster.vms()
 
@@ -996,11 +1152,14 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertGreater(m_time.sleep.call_count, 0)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
   @mock.patch("curie.task.TaskPoller.get_deadline_secs")
-  @mock.patch("curie.task.time.sleep")
   def test_power_on_vms_raises_exception_on_empty_task_list(
-      self, m_time_sleep, m_get_deadline_secs, m_VmmClient):
-    m_get_deadline_secs.side_effect = lambda x: time.time() + 0.1
+      self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(3)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].is_powered_on.return_value = False
@@ -1020,12 +1179,17 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(str(ar.exception),
                      "Unhandled exception occurred in HypervTaskPoller while "
-                     "waiting for tasks: Expected exactly 1 task in response "
+                     "waiting for tasks: Expected exactly 3 task(s) in response "
                      "- got []")
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_power_off_vms(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_power_off_vms(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(3)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].is_powered_on.return_value = True
@@ -1038,27 +1202,24 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.vm_get_job_status.side_effect = [
       # vms_set_power_state_for_vms
       [{"task_id": "0", "task_type": "vmm", "state": "running"},
-       {"task_id": "1", "task_type": "vmm", "state": "running"},
        {"task_id": "2", "task_type": "vmm", "state": "running"}],
       [{"task_id": "0", "task_type": "vmm", "state": "completed"},
-       {"task_id": "1", "task_type": "vmm", "state": "completed"},
        {"task_id": "2", "task_type": "vmm", "state": "completed"}],
     ]
     m_vmm_client.vms_set_power_state_for_vms.__name__ = \
       "vms_set_power_state_for_vms"
     m_vmm_client.vms_set_power_state_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-      [{"task_id": "2", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "2", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.power_off_vms(vms)
 
     m_vmm_client.vms_set_power_state_for_vms.assert_has_calls([
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_0", "power_state": "off"}]
-      ),
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_2", "power_state": "off"}]
+      mock.call(cluster_name="fake_cluster",
+                task_req_list=[{"vm_id": "fake_vm_0", "power_state": "off"},
+                               {"vm_id": "fake_vm_2", "power_state": "off"}]
       ),
     ], any_order=True)
 
@@ -1117,11 +1278,16 @@ class TestHyperVCluster(unittest.TestCase):
       }),
     ])
 
-  @mock.patch("curie.hyperv_cluster.time")
   @mock.patch("curie.hyperv_cluster.VmmClient")
   @mock.patch("curie.hyperv_cluster.HyperVNode", spec=True)
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_power_off_nodes_soft(
-      self, m_HyperVNode, m_VmmClient, m_time):
+      self, m_get_deadline_secs, m_time, m_HyperVNode, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     nodes = [mock.Mock(spec=HyperVNode) for _ in xrange(3)]
     nodes[0].node_id.return_value = "fake_node_0"
     nodes[0].get_fqdn.return_value = "fake_node_0_fqdn"
@@ -1137,17 +1303,14 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.vm_get_job_status.side_effect = [
       # nodes_power_state
       [{"task_id": "0", "task_type": "vmm", "state": "running"},
-       {"task_id": "1", "task_type": "vmm", "state": "running"},
        {"task_id": "2", "task_type": "vmm", "state": "running"}],
       [{"task_id": "0", "task_type": "vmm", "state": "completed"},
-       {"task_id": "1", "task_type": "vmm", "state": "completed"},
        {"task_id": "2", "task_type": "vmm", "state": "completed"}],
     ]
     m_vmm_client.nodes_power_state.__name__ = "nodes_power_state"
     m_vmm_client.nodes_power_state.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-      [{"task_id": "2", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "2", "task_type": "vmm"}],
     ]
     m_vmm_client.get_nodes.return_value = [
       {
@@ -1192,15 +1355,22 @@ class TestHyperVCluster(unittest.TestCase):
     cluster.power_off_nodes_soft(nodes)
 
     m_vmm_client.nodes_power_state.assert_has_calls([
-      mock.call("fake_cluster", [{"id": "fake_node_0",
-                                  "fqdn": "fake_node_0_fqdn"}]),
-      mock.call("fake_cluster", [{"id": "fake_node_2",
-                                  "fqdn": "fake_node_2_fqdn"}]),
+      mock.call(cluster_name="fake_cluster",
+                nodes=[{"id": "fake_node_0",
+                        "fqdn": "fake_node_0_fqdn"},
+                       {"id": "fake_node_2",
+                        "fqdn": "fake_node_2_fqdn"}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_relocate_vms_datastore(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_relocate_vms_datastore(self, m_get_deadline_secs, m_time,
+                                  m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vms = [mock.Mock(spec=Vm) for _ in xrange(2)]
     vms[0].vm_id.return_value = "fake_vm_0"
     vms[0].node_id.return_value = "fake_node_0"
@@ -1217,8 +1387,8 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.migrate_vm_datastore.__name__ = "migrate_vm_datastore"
     m_vmm_client.migrate_vm_datastore.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
@@ -1226,15 +1396,22 @@ class TestHyperVCluster(unittest.TestCase):
                                    ["fake_datastore_0", "fake_datastore_1"])
 
     m_vmm_client.migrate_vm_datastore.assert_has_calls([
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_0",
-                                  "datastore_name": "fake_datastore_0"}]),
-      mock.call("fake_cluster", [{"vm_id": "fake_vm_1",
-                                  "datastore_name":"fake_datastore_1"}]),
+      mock.call(cluster_name="fake_cluster",
+                vm_datastore_map=[{"vm_id": "fake_vm_0",
+                                   "datastore_name": "fake_datastore_0"},
+                                  {"vm_id": "fake_vm_1",
+                                   "datastore_name":"fake_datastore_1"}]),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_clone_vms_from_template(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_clone_vms_from_template(self, m_get_deadline_secs, m_time,
+                                   m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vm = mock.Mock(spec=Vm)
     from curie.name_util import CURIE_GOLDIMAGE_VM_NAME_PREFIX
     vm.vm_id.return_value = "%s_fake_source_vm" % CURIE_GOLDIMAGE_VM_NAME_PREFIX
@@ -1252,8 +1429,8 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.create_vm.__name__ = "create_vm"
     m_vmm_client.create_vm.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
     ]
     m_vmm_client.get_vms.__name__ = "get_vms"
     m_vmm_client.get_vms.return_value = [
@@ -1298,21 +1475,88 @@ class TestHyperVCluster(unittest.TestCase):
     m_vmm_client.clone_vm.assert_not_called()
     m_vmm_client.convert_to_template.assert_not_called()
     m_vmm_client.create_vm.assert_has_calls([
-      mock.call("fake_cluster", "__curie_goldimage_fake_source_vm",
-                [{"vm_name": "Fake Cloned VM 0", "node_id": "fake_node_0"}],
-                "\\\\fake\\path\\to\\fake_share_name", None),
-      mock.call("fake_cluster", "__curie_goldimage_fake_source_vm",
-                [{"vm_name": "Fake Cloned VM 1", "node_id": "fake_node_0"}],
-                "\\\\fake\\path\\to\\fake_share_name", None),
+      mock.call(cluster_name="fake_cluster",
+                vm_template_name="__curie_goldimage_fake_source_vm",
+                vm_host_map=[{"vm_name": "Fake Cloned VM 0", "node_id": "fake_node_0"},
+                             {"vm_name": "Fake Cloned VM 1", "node_id": "fake_node_0"}],
+                vm_datastore_path="\\\\fake\\path\\to\\fake_share_name", data_disks=None,
+                differencing_disks_path=None),
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_clone_vms_from_other_vm(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_clone_vms_duplicate(self, m_get_deadline_secs, m_time,
+                                   m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
+    vm = mock.Mock(spec=Vm)
+    from curie.name_util import CURIE_GOLDIMAGE_VM_NAME_PREFIX
+    vm.vm_id.return_value = "%s_fake_source_vm" % CURIE_GOLDIMAGE_VM_NAME_PREFIX
+    vm.node_id.return_value = "fake_node_0"
+    vm.vm_name.return_value = "%s_fake_source_vm" % CURIE_GOLDIMAGE_VM_NAME_PREFIX
+    vm.is_powered_on.return_value = False
+
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.vm_get_job_status.side_effect = [
+      # create_vm
+      [{"task_id": "0", "task_type": "vmm", "state": "running"},
+       {"task_id": "1", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "completed"},
+       {"task_id": "1", "task_type": "vmm", "state": "completed"}],
+    ]
+    m_vmm_client.create_vm.__name__ = "create_vm"
+    m_vmm_client.create_vm.side_effect = [
+      [{"task_id": "0", "task_type": "vmm"},
+       {"task_id": "1", "task_type": "vmm"}],
+    ]
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.get_vms.return_value = [
+      {
+        "id": "fake_cloned_vm_0",
+        "name": "Fake Cloned VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_cloned_vm_1",
+        "name": "Fake Cloned VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_cloned_vm_2",
+        "name": "Fake Cloned VM 1",
+        "status": "PowerOff",
+        "ips": ["169.254.1.3"],
+        "node_id": "fake_node_0",
+      },
+    ]
+
+    cluster = HyperVCluster(self.cluster_metadata)
+    vms = cluster.clone_vms(vm, ["Fake Cloned VM 0", "Fake Cloned VM 1"],
+                     node_ids=["fake_node_0", "fake_node_0"])
+
+    self.assertEqual(len(vms), 2)
+
+
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_clone_vms_from_other_vm(self, m_get_deadline_secs, m_time,
+                                   m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     vm = mock.Mock(spec=Vm)
     vm.vm_id.return_value = "fake_source_vm_0"
     vm.node_id.return_value = "fake_node_0"
-    vm.vm_name.return_value = "Fake Source VM 0"
+    vm.vm_name.return_value = "Fake _test_ Source VM 0"
     vm.is_powered_on.return_value = False
 
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
@@ -1340,8 +1584,8 @@ class TestHyperVCluster(unittest.TestCase):
     ]
     m_vmm_client.create_vm.__name__ = "create_vm"
     m_vmm_client.create_vm.side_effect = [
-      [{"task_id": "2", "task_type": "vmm"}],
-      [{"task_id": "3", "task_type": "vmm"}],
+      [{"task_id": "2", "task_type": "vmm"},
+       {"task_id": "3", "task_type": "vmm"}],
     ]
     m_vmm_client.get_vms.__name__ = "get_vms"
     m_vmm_client.get_vms.return_value = [
@@ -1354,7 +1598,7 @@ class TestHyperVCluster(unittest.TestCase):
       },
       {
         "id": "fake_source_vm_0",
-        "name": "Fake Source VM 0",
+        "name": "Fake _test_ Source VM 0",
         "status": "PowerOff",
         "ips": ["169.254.1.1"],
         "node_id": "fake_node_0",
@@ -1384,19 +1628,22 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(vms[1].vm_id(), "fake_cloned_vm_1")
 
     m_vmm_client.clone_vm.assert_called_once_with(
-      "fake_cluster", "fake_source_vm_0", "Fake Source VM 0",
-      "\\\\fake\\path\\to\\fake_share_name"
+      cluster_name="fake_cluster",
+      base_vm_id="fake_source_vm_0",
+      vm_name="Fake _temp_ Source VM 0",
+      vm_datastore_path="\\\\fake\\path\\to\\fake_share_name"
     )
     m_vmm_client.convert_to_template.assert_called_once_with(
-      "fake_cluster", "Fake Source VM 0"
+      cluster_name="fake_cluster", template_name="Fake _temp_ Source VM 0"
     )
     m_vmm_client.create_vm.assert_has_calls([
-      mock.call("fake_cluster", "Fake Source VM 0",
-                [{"vm_name": "Fake Cloned VM 0", "node_id": "fake_node_0"}],
-                "\\\\fake\\path\\to\\fake_share_name", None),
-      mock.call("fake_cluster", "Fake Source VM 0",
-                [{"vm_name": "Fake Cloned VM 1", "node_id": "fake_node_0"}],
-                "\\\\fake\\path\\to\\fake_share_name", None),
+      mock.call(cluster_name="fake_cluster",
+                vm_template_name="Fake _temp_ Source VM 0",
+                vm_host_map=[{"vm_name": "Fake Cloned VM 0", "node_id": "fake_node_0"},
+                             {"vm_name": "Fake Cloned VM 1", "node_id": "fake_node_0"}],
+                vm_datastore_path="\\\\fake\\path\\to\\fake_share_name",
+                data_disks=None, differencing_disks_path=None),
+
     ], any_order=True)
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
@@ -1458,8 +1705,13 @@ class TestHyperVCluster(unittest.TestCase):
                      cluster.get_power_state_for_nodes(nodes))
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
-  @mock.patch("curie.task.time.sleep")
-  def test_cleanup(self, m_time_sleep, m_VmmClient):
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
+  def test_cleanup(self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     nodes = [mock.Mock(spec=HyperVNode) for _ in xrange(3)]
     for index, node in enumerate(nodes):
       node.get_management_software_property_name_map.return_value = \
@@ -1470,41 +1722,20 @@ class TestHyperVCluster(unittest.TestCase):
 
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
     m_vmm_client.vm_get_job_status.side_effect = [
-      # vms_set_power_state_for_vms
-      [{"task_id": "0", "task_type": "vmm", "state": "running"},
-       {"task_id": "1", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "0", "task_type": "vmm", "state": "completed"},
-       {"task_id": "1", "task_type": "vmm", "state": "completed"}],
-      # vms_delete
-      [{"task_id": "2", "task_type": "vmm", "state": "running"},
-       {"task_id": "3", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "2", "task_type": "vmm", "state": "completed"},
-       {"task_id": "3", "task_type": "vmm", "state": "completed"}],
       # clean_vmm
-      [{"task_id": "4", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "4", "task_type": "vmm", "state": "completed"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "completed"}],
       # clean_library_server
-      [{"task_id": "5", "task_type": "vmm", "state": "running"}],
-      [{"task_id": "5", "task_type": "vmm", "state": "completed"}],
-    ]
-    m_vmm_client.vms_set_power_state_for_vms.__name__ = \
-      "vms_set_power_state_for_vms"
-    m_vmm_client.vms_set_power_state_for_vms.side_effect = [
-      [{"task_id": "0", "task_type": "vmm"}],
-      [{"task_id": "1", "task_type": "vmm"}],
-    ]
-    m_vmm_client.vms_delete.__name__ = "vms_delete"
-    m_vmm_client.vms_delete.side_effect = [
-      [{"task_id": "2", "task_type": "vmm"}],
-      [{"task_id": "3", "task_type": "vmm"}],
+      [{"task_id": "1", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "1", "task_type": "vmm", "state": "completed"}],
     ]
     m_vmm_client.clean_vmm.__name__ = "clean_vmm"
     m_vmm_client.clean_vmm.side_effect = [
-      [{"task_id": "4", "task_type": "vmm"}],
+      [{"task_id": "0", "task_type": "vmm"}],
     ]
     m_vmm_client.clean_library_server.__name__ = "clean_library_server"
     m_vmm_client.clean_library_server.side_effect = [
-      [{"task_id": "5", "task_type": "vmm"}],
+      [{"task_id": "1", "task_type": "vmm"}],
     ]
     m_vmm_client.get_vms.__name__ = "get_vms"
     m_vmm_client.get_vms.return_value = [
@@ -1534,21 +1765,5 @@ class TestHyperVCluster(unittest.TestCase):
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.cleanup()
 
-    m_vmm_client.vms_set_power_state_for_vms.assert_has_calls([
-      mock.call(
-      "fake_cluster", [
-        {"vm_id": "__curie_0_fake_vm_to_be_cleaned_0", "power_state": "off"},
-      ]),
-      mock.call(
-      "fake_cluster", [
-        {"vm_id": "__curie_0_fake_vm_to_be_cleaned_1", "power_state": "off"},
-      ]),
-    ], any_order=True)
-    m_vmm_client.vms_delete.assert_has_calls([
-      mock.call(
-      "fake_cluster", ["__curie_0_fake_vm_to_be_cleaned_1"]),
-      mock.call(
-      "fake_cluster", ["__curie_0_fake_vm_to_be_cleaned_0"]),
-    ], any_order=True)
     m_vmm_client.clean_library_server.assert_called_once_with(
-      "fake_cluster", "__curie")
+      target_dir="fake_cluster", vm_name_prefix="__curie")

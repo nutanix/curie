@@ -44,3 +44,4 @@ six==1.11.0               # via bcrypt, cryptography, protobuf, pynacl, pyopenss
 typing==3.6.2             # via m2crypto
 urllib3==1.22             # via requests
 werkzeug==0.12.2          # via flask
+xmltodict==0.11.0

@@ -20,14 +20,6 @@ class TestVmmClient(unittest.TestCase):
     if self.type != "scvmm":
       raise ValueError("Unsupported manager.type '%s'" % self.type)
 
-  def test_logon_twice(self):
-    vmm_client = VmmClient(address=self.config["scvmm.address"],
-                           username=self.config["scvmm.username"],
-                           password=self.config["scvmm.password"])
-    with vmm_client:
-      vmm_client.logout()
-      vmm_client.login()
-
   def test_get_clusters(self):
     vmm_client = VmmClient(address=self.config["scvmm.address"],
                            username=self.config["scvmm.username"],

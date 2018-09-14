@@ -16,10 +16,11 @@ from curie.acropolis_cluster import AcropolisCluster
 from curie.curie_metrics_pb2 import CurieMetric
 from curie.curie_test_pb2 import CurieTestResult
 from curie.exception import ScenarioStoppedError
+from curie.result.cluster_result import ClusterResult
+from curie.result.iogen_result import IogenResult
 from curie.scenario import Phase, Scenario, Status
-from curie.test.result.cluster_result import ClusterResult
-from curie.test.result.iogen_result import IogenResult
-from curie.test.steps._base_step import BaseStep
+from curie.steps._base_step import BaseStep
+from curie.steps.cluster import CleanUp
 from curie.testing import environment
 from curie.testing.util import mock_cluster
 
@@ -36,52 +37,115 @@ class TestScenario(unittest.TestCase):
     self.scenario.cluster = mock_cluster()
     self.scenario.output_directory = path
     self.mock_setup_step = mock.Mock(spec=BaseStep)
-    self.mock_run_step = mock.Mock(spec=BaseStep)
+    self.mock_setup_step.description = "Some mock Setup thing"
+    self.mock_setup_step.status = Status.NOT_STARTED
     self.mock_setup_step.requirements.return_value = set()
+    self.mock_run_step = mock.Mock(spec=BaseStep)
+    self.mock_run_step.description = "Some mock Run thing"
+    self.mock_run_step.status = Status.NOT_STARTED
     self.mock_run_step.requirements.return_value = set()
-    self.scenario.add_step(self.mock_setup_step, Phase.kSetup)
-    self.scenario.add_step(self.mock_run_step, Phase.kRun)
-    self.scenario._status = Status.kExecuting
+    self.scenario.add_step(self.mock_setup_step, Phase.SETUP)
+    self.scenario.add_step(self.mock_run_step, Phase.RUN)
+    self.scenario._status = Status.EXECUTING
 
   def test_init(self):
     scenario = Scenario()
-    self.assertEqual(scenario.status(), Status.kNotStarted)
+    self.assertEqual(scenario.status(), Status.NOT_STARTED)
     self.assertEqual(scenario.duration_secs(), None)
 
   def test_repr(self):
     scenario = Scenario()
     self.assertEqual(
-      "<Scenario(name=None, display_name=None, id=%d, status=<Status.kNotStarted: 0>)>" %
+      "<Scenario(name=None, display_name=None, id=%d, status=<Status.NOT_STARTED: 0>)>" %
       scenario.id,
       repr(scenario))
     scenario = Scenario(name="fake_test")
     self.assertEqual(
-      "<Scenario(name='fake_test', display_name='fake_test', id=%d, status=<Status.kNotStarted: 0>)>" %
+      "<Scenario(name='fake_test', display_name='fake_test', id=%d, status=<Status.NOT_STARTED: 0>)>" %
       scenario.id,
       repr(scenario))
     scenario = Scenario(name="fake_test", display_name="Fake Test")
     self.assertEqual(
-      "<Scenario(name='fake_test', display_name='Fake Test', id=%d, status=<Status.kNotStarted: 0>)>" %
+      "<Scenario(name='fake_test', display_name='Fake Test', id=%d, status=<Status.NOT_STARTED: 0>)>" %
       scenario.id,
       repr(scenario))
 
   def test_add_step_already_running(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     with self.assertRaises(RuntimeError) as ar:
-      self.scenario.add_step(self.mock_setup_step, Phase.kSetup)
+      self.scenario.add_step(self.mock_setup_step, Phase.SETUP)
     self.assertEqual(
-      "Fake Scenario (kExecuting): Can not add step %r because the scenario "
+      "Fake Scenario (EXECUTING): Can not add step %r because the scenario "
       "has already been started" % self.mock_setup_step,
       str(ar.exception))
 
   def test_add_step_phase_not_found(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     with self.assertRaises(ValueError) as ar:
       self.scenario.add_step(self.mock_setup_step, None)
     self.assertEqual(
-      "Fake Scenario (kNotStarted): Can not add step %r because the phase "
+      "Fake Scenario (NOT_STARTED): Can not add step %r because the phase "
       "None is invalid" % self.mock_setup_step,
       str(ar.exception))
+
+  def test_completed_remaining_steps_default(self):
+    self.assertEqual([], self.scenario.completed_steps())
+    self.assertEqual([(Phase.SETUP, self.mock_setup_step),
+                      (Phase.RUN, self.mock_run_step)],
+                     self.scenario.remaining_steps())
+
+  def test_completed_remaining_steps_one_succeeded(self):
+    self.mock_setup_step.status = Status.SUCCEEDED
+    self.assertEqual([(Phase.SETUP, self.mock_setup_step)],
+                     self.scenario.completed_steps())
+    self.assertEqual([(Phase.RUN, self.mock_run_step)],
+                     self.scenario.remaining_steps())
+
+  def test_completed_remaining_steps_all_succeeded(self):
+    self.mock_setup_step.status = Status.SUCCEEDED
+    self.mock_run_step.status = Status.SUCCEEDED
+    self.assertEqual([(Phase.SETUP, self.mock_setup_step),
+                      (Phase.RUN, self.mock_run_step)],
+                     self.scenario.completed_steps())
+    self.assertEqual([], self.scenario.remaining_steps())
+
+  def test_completed_remaining_steps_one_failed(self):
+    self.mock_setup_step.status = Status.FAILED
+    self.assertEqual([], self.scenario.completed_steps())
+    self.assertEqual([(Phase.SETUP, self.mock_setup_step),
+                      (Phase.RUN, self.mock_run_step)],
+                     self.scenario.remaining_steps())
+
+  def test_progress_no_steps(self):
+    scenario = Scenario()
+    steps = [step for _, step in scenario.itersteps()]
+    self.assertEqual(0, len(steps))
+    self.assertEqual(0, scenario.progress())
+
+  def test_progress_not_started(self):
+    steps = [step for _, step in self.scenario.itersteps()]
+    self.assertEqual(2, len(steps))
+    self.assertEqual(0, self.scenario.progress())
+
+  def test_progress_half_finished_success(self):
+    self.mock_setup_step.status = Status.SUCCEEDED
+    self.mock_run_step.status = Status.EXECUTING
+    self.assertEqual(0.5, self.scenario.progress())
+
+  def test_progress_half_finished_failure(self):
+    self.mock_setup_step.status = Status.FAILED
+    self.mock_run_step.status = Status.NOT_STARTED
+    self.assertEqual(0.5, self.scenario.progress())
+
+  def test_progress_all_finished_success(self):
+    self.mock_setup_step.status = Status.SUCCEEDED
+    self.mock_run_step.status = Status.SUCCEEDED
+    self.assertEqual(1, self.scenario.progress())
+
+  def test_progress_all_finished_failure(self):
+    self.mock_setup_step.status = Status.SUCCEEDED
+    self.mock_run_step.status = Status.FAILED
+    self.assertEqual(1, self.scenario.progress())
 
   def test_duration_secs_both_none(self):
     scenario = Scenario()
@@ -115,19 +179,19 @@ class TestScenario(unittest.TestCase):
 
   def test_phase_is_new_active_terminal(self):
     new = [
-      Status.kNotStarted,
+      Status.NOT_STARTED,
     ]
     active = [
-      Status.kExecuting,
-      Status.kStopping,
-      Status.kFailing,
+      Status.EXECUTING,
+      Status.STOPPING,
+      Status.FAILING,
     ]
     terminal = [
-      Status.kSucceeded,
-      Status.kFailed,
-      Status.kStopped,
-      Status.kCanceled,
-      Status.kInternalError,
+      Status.SUCCEEDED,
+      Status.FAILED,
+      Status.STOPPED,
+      Status.CANCELED,
+      Status.INTERNAL_ERROR,
     ]
     self.assertEqual(new + active + terminal, list(Status))
     for status in new:
@@ -145,7 +209,7 @@ class TestScenario(unittest.TestCase):
 
   def test_four_corners_save_state_load_state(self):
     four_corners_directory = os.path.join(
-      environment.top, "curie", "test", "yaml", "four_corners_microbenchmark")
+      environment.top, "curie", "yaml", "four_corners_microbenchmark")
     scenario = scenario_parser.from_path(four_corners_directory)
     scenario.cluster = mock_cluster()
     scenario.output_directory = environment.test_output_dir(self)
@@ -160,7 +224,7 @@ class TestScenario(unittest.TestCase):
 
   def test_four_corners_save_state_load_state_experimental_metrics(self):
     four_corners_directory = os.path.join(
-      environment.top, "curie", "test", "yaml", "four_corners_microbenchmark")
+      environment.top, "curie", "yaml", "four_corners_microbenchmark")
     scenario = scenario_parser.from_path(four_corners_directory,
                                          enable_experimental_metrics=True)
     scenario.cluster = mock_cluster()
@@ -201,7 +265,7 @@ class TestScenario(unittest.TestCase):
   def test_start_join_copy_configuration_files(
       self, mock_sru, mock_cru, mock_check, mock_open, m_listdir,
       m_isfile, m_isdir, m_copy2, mock_copytree):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     mock_sru.return_value = 0
     mock_cru.return_value = 0
     m_listdir.return_value = ["file_1", "dir_1", "file_2"]
@@ -226,7 +290,7 @@ class TestScenario(unittest.TestCase):
       "/fake/source/directory/dir_1",
       os.path.join(self.scenario.output_directory, "dir_1"))
     mock_open.assert_not_called()
-    self.assertEqual(Status.kSucceeded, self.scenario.status())
+    self.assertEqual(Status.SUCCEEDED, self.scenario.status())
     self.assertIsNotNone(self.scenario._start_time_secs)
     self.assertIsNotNone(self.scenario._end_time_secs)
 
@@ -237,7 +301,7 @@ class TestScenario(unittest.TestCase):
   @mock.patch("curie.scenario.Scenario._scenario_results_update")
   def test_start_join_write_yaml(
       self, mock_sru, mock_cru, mock_check, mock_open, mock_copytree):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     mock_sru.return_value = 0
     mock_cru.return_value = 0
     self.scenario.yaml_str = "NOT A REAL YAML STRING"
@@ -254,71 +318,71 @@ class TestScenario(unittest.TestCase):
       os.path.join(self.scenario.output_directory, "test-parsed.yml"), "w")
     fh = mock_open.return_value.__enter__.return_value
     fh.write.assert_called_once_with("NOT A REAL YAML STRING")
-    self.assertEqual(Status.kSucceeded, self.scenario.status())
+    self.assertEqual(Status.SUCCEEDED, self.scenario.status())
     self.assertIsNotNone(self.scenario._start_time_secs)
     self.assertIsNotNone(self.scenario._end_time_secs)
 
   def test_start_running(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
 
     with self.assertRaises(RuntimeError) as ar:
       self.scenario.start()
 
-    self.assertEqual("Fake Scenario (kExecuting): Can not start because it "
+    self.assertEqual("Fake Scenario (EXECUTING): Can not start because it "
                      "has already been started",
                      str(ar.exception))
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
 
   def test_start_no_cluster_set(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     self.scenario.cluster = None
 
     with self.assertRaises(RuntimeError) as ar:
       self.scenario.start()
 
-    self.assertEqual("Fake Scenario (kNotStarted): Can not start because "
+    self.assertEqual("Fake Scenario (NOT_STARTED): Can not start because "
                      "cluster has not been set (perhaps it has been "
                      "pickled/unpickled?)",
                      str(ar.exception))
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kNotStarted, self.scenario.status())
+    self.assertEqual(Status.NOT_STARTED, self.scenario.status())
 
   def test_start_no_output_directory_set(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     self.scenario.output_directory = None
 
     with self.assertRaises(RuntimeError) as ar:
       self.scenario.start()
 
-    self.assertEqual("Fake Scenario (kNotStarted): Can not start because "
+    self.assertEqual("Fake Scenario (NOT_STARTED): Can not start because "
                      "output directory has not been set",
                      str(ar.exception))
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kNotStarted, self.scenario.status())
+    self.assertEqual(Status.NOT_STARTED, self.scenario.status())
 
   def test_start_manually_added_presetup_steps(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     mock_step = mock.Mock(spec=BaseStep)
     mock_step.requirements.return_value = set()
-    self.scenario.add_step(mock_step, Phase.kPreSetup)
+    self.scenario.add_step(mock_step, Phase.PRE_SETUP)
 
     with self.assertRaises(RuntimeError) as ar:
       self.scenario.start()
 
-    self.assertEqual("Fake Scenario (kNotStarted): Steps should not be "
+    self.assertEqual("Fake Scenario (NOT_STARTED): Steps should not be "
                      "manually added to the PreSetup phase",
                      str(ar.exception))
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kNotStarted, self.scenario.status())
+    self.assertEqual(Status.NOT_STARTED, self.scenario.status())
 
   @mock.patch("curie.scenario.os.makedirs")
   def test_start_unexpected_oserror(self, mock_makedirs):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     err = OSError()
     err.errno = errno.EIO
     mock_makedirs.side_effect = err
@@ -328,80 +392,80 @@ class TestScenario(unittest.TestCase):
     self.assertEqual(errno.EIO, ar.exception.errno)
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kNotStarted, self.scenario.status())
+    self.assertEqual(Status.NOT_STARTED, self.scenario.status())
 
   def test_start_in_terminal_state(self):
-    self.scenario._status = Status.kStopped
+    self.scenario._status = Status.STOPPED
 
     with self.assertRaises(RuntimeError):
       self.scenario.start()
 
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kStopped, self.scenario.status())
+    self.assertEqual(Status.STOPPED, self.scenario.status())
     self.scenario.join()
 
   def test_stop_new(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
 
     self.scenario.stop()
 
-    self.assertEqual(Status.kCanceled, self.scenario.status())
+    self.assertEqual(Status.CANCELED, self.scenario.status())
 
   def test_stop_active(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
 
     self.scenario.stop()
 
-    self.assertEqual(Status.kStopping, self.scenario.status())
+    self.assertEqual(Status.STOPPING, self.scenario.status())
 
   def test_stop_terminal(self):
-    self.scenario._status = Status.kSucceeded
+    self.scenario._status = Status.SUCCEEDED
 
     self.scenario.stop()
 
-    self.assertEqual(Status.kSucceeded, self.scenario.status())
+    self.assertEqual(Status.SUCCEEDED, self.scenario.status())
 
   def test_stop_stopping(self):
-    self.scenario._status = Status.kStopping
+    self.scenario._status = Status.STOPPING
 
     self.scenario.stop()
 
-    self.assertEqual(Status.kStopping, self.scenario.status())
+    self.assertEqual(Status.STOPPING, self.scenario.status())
 
   def test_join_not_started(self):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     with self.assertRaises(RuntimeError) as ar:
       self.scenario.join()
-    self.assertEqual("Fake Scenario (kNotStarted) can not be joined because "
+    self.assertEqual("Fake Scenario (NOT_STARTED) can not be joined because "
                      "it has not been started", str(ar.exception))
 
   def test_join_active(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario.join()
-    self.assertEqual(Status.kSucceeded, self.scenario.status())
+    self.assertEqual(Status.SUCCEEDED, self.scenario.status())
 
   def test_join_failing(self):
-    self.scenario._status = Status.kFailing
+    self.scenario._status = Status.FAILING
     self.scenario.join()
-    self.assertEqual(Status.kFailed, self.scenario.status())
+    self.assertEqual(Status.FAILED, self.scenario.status())
 
   def test_join_stopping(self):
-    self.scenario._status = Status.kStopping
+    self.scenario._status = Status.STOPPING
     self.scenario.join()
-    self.assertEqual(Status.kStopped, self.scenario.status())
+    self.assertEqual(Status.STOPPED, self.scenario.status())
 
   def test_join_terminal(self):
-    self.scenario._status = Status.kStopped
+    self.scenario._status = Status.STOPPED
     self.scenario.join()
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
 
   def test_join_all_alive(self):
     mock_thread_0 = mock.Mock()
     mock_thread_1 = mock.Mock()
     mock_thread_0.is_alive.return_value = True
     mock_thread_1.is_alive.return_value = True
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario._threads.append(mock_thread_0)
     self.scenario._threads.append(mock_thread_1)
 
@@ -417,7 +481,7 @@ class TestScenario(unittest.TestCase):
     mock_thread_1 = mock.Mock()
     mock_thread_0.is_alive.return_value = True
     mock_thread_1.is_alive.return_value = False
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario._threads.append(mock_thread_0)
     self.scenario._threads.append(mock_thread_1)
 
@@ -431,7 +495,7 @@ class TestScenario(unittest.TestCase):
   def test_join_pass_through_timeout_parameter(self):
     mock_thread_0 = mock.Mock()
     mock_thread_0.is_alive.return_value = True
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario._threads.append(mock_thread_0)
 
     self.scenario.join(12345)
@@ -444,14 +508,14 @@ class TestScenario(unittest.TestCase):
     mock_thread_0 = mock.Mock()
     mock_thread_0.is_alive.return_value = True
     mock_thread_0.join.side_effect = err
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario._threads.append(mock_thread_0)
 
     self.scenario.join(12345)
 
     mock_thread_0.is_alive.assert_called_once()
     mock_thread_0.join.assert_called_once_with(timeout=12345)
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
     self.assertEqual("OMGWTFBBQ", self.scenario.error_message())
 
   def test_verify_steps(self):
@@ -551,74 +615,48 @@ class TestScenario(unittest.TestCase):
 
   @mock.patch("curie.scenario.check")
   @mock.patch("curie.scenario.nodes")
-  def test_initialize_presetup_phase(self, mock_nodes, mock_check):
-    self.scenario._status = Status.kNotStarted
-    self.assertEqual(2, len([_ for _ in self.scenario.itersteps()]))
-
-    # Mock this to prevent FATAL from doing bad things during unit test.
-    mock_check.prereq_runtime_vm_storage_is_ready.return_value = True
-    self.scenario._initialize_presetup_phase()
-
-    self.assertEqual(5, len([_ for _ in self.scenario.itersteps()]))
-
-    mock_check.OobConfigured.assert_not_called()
-    mock_nodes.PowerOn.assert_not_called()
-    mock_check.ClustersMatch.assert_called_once_with(self.scenario)
-    mock_check.ClusterReady.assert_called_once_with(self.scenario)
-    mock_check.VMStorageAvailable.assert_called_once_with(self.scenario)
-
-  @mock.patch("curie.scenario.check")
-  @mock.patch("curie.scenario.nodes")
   def test_initialize_presetup_phase_overwrite(self, mock_nodes, mock_check):
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
     mock_step = mock.Mock(spec=BaseStep)
     mock_step.requirements.return_value = set()
-    self.scenario.add_step(mock_step, Phase.kPreSetup)
+    self.scenario.add_step(mock_step, Phase.PRE_SETUP)
     self.assertEqual(3, len([_ for _ in self.scenario.itersteps()]))
 
     # Mock this to prevent FATAL from doing bad things during unit test.
     mock_check.prereq_runtime_vm_storage_is_ready.return_value = True
     self.scenario._initialize_presetup_phase()
 
-    self.assertEqual(5, len([_ for _ in self.scenario.itersteps()]))
+    self.assertEqual(2, len([_ for _ in self.scenario.itersteps()]))
 
     mock_check.OobConfigured.assert_not_called()
-    mock_nodes.PowerOn.assert_not_called()
-    mock_check.ClustersMatch.assert_called_once_with(self.scenario)
-    mock_check.ClusterReady.assert_called_once_with(self.scenario)
-    mock_check.VMStorageAvailable.assert_called_once_with(self.scenario)
 
   @mock.patch("curie.scenario.check")
   @mock.patch("curie.scenario.nodes")
   def test_initialize_presetup_phase_with_oob(self, mock_nodes, mock_check):
     scenario = Scenario()
-    scenario._status = Status.kNotStarted
+    scenario._status = Status.NOT_STARTED
     mock_setup_step = mock.Mock(spec=BaseStep)
     mock_run_step = mock.Mock(spec=BaseStep)
     mock_setup_step.requirements.return_value = set([BaseStep.OOB_CONFIG])
     mock_run_step.requirements.return_value = set()
-    scenario.add_step(mock_setup_step, Phase.kSetup)
-    scenario.add_step(mock_run_step, Phase.kRun)
+    scenario.add_step(mock_setup_step, Phase.SETUP)
+    scenario.add_step(mock_run_step, Phase.RUN)
     self.assertEqual(2, len([_ for _ in scenario.itersteps()]))
 
     # Mock this to prevent FATAL from doing bad things during unit test.
     mock_check.prereq_runtime_vm_storage_is_ready.return_value = True
     scenario._initialize_presetup_phase()
 
-    self.assertEqual(7, len([_ for _ in scenario.itersteps()]))
+    self.assertEqual(3, len([_ for _ in scenario.itersteps()]))
 
     mock_check.OobConfigured.assert_called_once_with(scenario)
-    mock_nodes.PowerOn.assert_called_once_with(scenario, "all")
-    mock_check.ClustersMatch.assert_called_once_with(scenario)
-    mock_check.ClusterReady.assert_called_once_with(scenario)
-    mock_check.VMStorageAvailable.assert_called_once_with(scenario)
 
   def test_step_loop(self):
     self.scenario._step_loop()
 
     self.mock_setup_step.assert_called_once()
     self.mock_run_step.assert_called_once()
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
     self.assertIs(self.scenario.error_message(), None)
     self.assertIsNotNone(self.scenario._end_time_secs)
 
@@ -628,7 +666,7 @@ class TestScenario(unittest.TestCase):
 
     self.mock_setup_step.assert_called_once()
     self.mock_run_step.assert_called_once()
-    self.assertEqual(Status.kFailing, self.scenario.status())
+    self.assertEqual(Status.FAILING, self.scenario.status())
     self.assertEqual("This error is for you", self.scenario.error_message())
     self.assertIsNotNone(self.scenario._end_time_secs)
 
@@ -637,7 +675,7 @@ class TestScenario(unittest.TestCase):
     mock_es.side_effect = RuntimeError("This error is for you")
     self.scenario._step_loop()
 
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
     self.assertEqual("This error is for you", self.scenario.error_message())
     self.assertIsNotNone(self.scenario._end_time_secs)
 
@@ -647,7 +685,7 @@ class TestScenario(unittest.TestCase):
 
     self.mock_setup_step.assert_called_once()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kStopping, self.scenario.status())
+    self.assertEqual(Status.STOPPING, self.scenario.status())
     self.assertIs(self.scenario.error_message(), None)
     self.assertIsNotNone(self.scenario._end_time_secs)
 
@@ -659,13 +697,13 @@ class TestScenario(unittest.TestCase):
 
     self.mock_setup_step.assert_not_called()
     self.mock_run_step.assert_not_called()
-    self.assertEqual(Status.kFailing, self.scenario.status())
+    self.assertEqual(Status.FAILING, self.scenario.status())
     self.assertEqual("1 step failed to verify: %r" % self.mock_setup_step,
                      self.scenario.error_message())
     self.assertIsNotNone(self.scenario._end_time_secs)
 
   def test_scenario_results_loop_unhandled_exception(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     err = RuntimeError("OMGWTFBBQ")
     with mock.patch.object(self.scenario,
                            "_scenario_results_update") as mock_sru:
@@ -673,7 +711,7 @@ class TestScenario(unittest.TestCase):
 
       self.scenario._scenario_results_loop(interval_secs=0)
 
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
     self.assertEqual("OMGWTFBBQ", self.scenario.error_message())
 
   @mock.patch("curie.scenario.os.remove")
@@ -681,7 +719,7 @@ class TestScenario(unittest.TestCase):
   def test_scenario_results_loop_unhandled_exception_remove_target_file(
       self, mock_os_path_isfile, mock_os_remove):
     mock_os_path_isfile.return_value = True
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario.prometheus_config_directory = "/a/fake/directory"
     err = RuntimeError("OMGWTFBBQ")
     with mock.patch.object(self.scenario,
@@ -698,7 +736,7 @@ class TestScenario(unittest.TestCase):
   def test_scenario_results_loop_unhandled_exception_not_remove_target_file(
       self, mock_os_path_isfile, mock_os_remove):
     mock_os_path_isfile.return_value = False
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     self.scenario.prometheus_config_directory = "/a/fake/directory"
     err = RuntimeError("OMGWTFBBQ")
     with mock.patch.object(self.scenario,
@@ -716,18 +754,18 @@ class TestScenario(unittest.TestCase):
       if mock_cru.call_count > 1:
         self.scenario._end_time_secs = 1
 
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     with mock.patch.object(self.scenario,
                            "_cluster_results_update") as mock_cru:
       mock_cru.side_effect = set_end_time_secs
 
       self.scenario._cluster_results_loop(interval_secs=0)
 
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
     self.assertEqual(2, mock_cru.call_count)
 
   def test_cluster_results_loop_unhandled_exception(self):
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     err = RuntimeError("OMGWTFBBQ")
     with mock.patch.object(self.scenario,
                            "_cluster_results_update") as mock_cru:
@@ -735,7 +773,7 @@ class TestScenario(unittest.TestCase):
 
       self.scenario._cluster_results_loop()
 
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
     self.assertEqual("OMGWTFBBQ", self.scenario.error_message())
     mock_cru.assert_called_once()
 
@@ -752,14 +790,14 @@ class TestScenario(unittest.TestCase):
       elif mock_cru.call_count > 3:
         self.scenario._end_time_secs = 1
 
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     with mock.patch.object(self.scenario,
                            "_cluster_results_update") as mock_cru:
       mock_cru.side_effect = set_end_time_secs
 
       self.scenario._cluster_results_loop(interval_secs=0)
 
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
     self.assertEqual(4, mock_cru.call_count)
     mock_cru.assert_has_calls([mock.call(),
                                mock.call(12345),
@@ -769,97 +807,97 @@ class TestScenario(unittest.TestCase):
   def test_execute_step(self):
     mock_step = mock.Mock()
 
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_called_once()
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
 
   def test_execute_step_exception_sets_failing_state(self):
     mock_step = mock.Mock()
     self.assertEqual(None, self.scenario.error_message())
 
     mock_step.side_effect = IOError("This error is for you")
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_called_once()
-    self.assertEqual(Status.kFailing, self.scenario.status())
+    self.assertEqual(Status.FAILING, self.scenario.status())
     self.assertEqual("This error is for you", self.scenario.error_message())
 
   def test_execute_step_in_new_state_raises_exception(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kNotStarted
+    self.scenario._status = Status.NOT_STARTED
 
     with self.assertRaises(RuntimeError) as ar:
-      self.scenario._execute_step(Phase.kRun, mock_step)
+      self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_not_called()
-    self.assertIn("executed before Fake Scenario (kNotStarted) entered a "
+    self.assertIn("executed before Fake Scenario (NOT_STARTED) entered a "
                   "running state", str(ar.exception))
-    self.assertEqual(Status.kNotStarted, self.scenario.status())
+    self.assertEqual(Status.NOT_STARTED, self.scenario.status())
 
   def test_execute_step_in_terminal_state_raises_exception(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kSucceeded
+    self.scenario._status = Status.SUCCEEDED
 
     with self.assertRaises(RuntimeError) as ar:
-      self.scenario._execute_step(Phase.kRun, mock_step)
+      self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_not_called()
-    self.assertIn("executed while Fake Scenario (kSucceeded) was in a "
+    self.assertIn("executed while Fake Scenario (SUCCEEDED) was in a "
                   "terminal state", str(ar.exception))
-    self.assertEqual(Status.kSucceeded, self.scenario.status())
+    self.assertEqual(Status.SUCCEEDED, self.scenario.status())
 
   def test_execute_step_in_stopping_state_skips_execution(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kStopping
+    self.scenario._status = Status.STOPPING
 
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_not_called()
-    self.assertEqual(Status.kStopping, self.scenario.status())
+    self.assertEqual(Status.STOPPING, self.scenario.status())
 
   def test_execute_step_in_failing_state_skips_execution(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kFailing
+    self.scenario._status = Status.FAILING
 
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_not_called()
-    self.assertEqual(Status.kFailing, self.scenario.status())
+    self.assertEqual(Status.FAILING, self.scenario.status())
 
   def test_execute_step_raises_expected_ScenarioStoppedError(self):
     def set_stopping(*args, **kwargs):
-      self.scenario._status = Status.kStopping
+      self.scenario._status = Status.STOPPING
       raise ScenarioStoppedError()
 
     mock_step = mock.Mock()
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     mock_step.side_effect = set_stopping
 
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_called_once()
-    self.assertEqual(Status.kStopping, self.scenario.status())
+    self.assertEqual(Status.STOPPING, self.scenario.status())
 
   def test_execute_step_raises_unexpected_ScenarioStoppedError(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kExecuting
+    self.scenario._status = Status.EXECUTING
     mock_step.side_effect = ScenarioStoppedError
 
     with self.assertRaises(ScenarioStoppedError):
-      self.scenario._execute_step(Phase.kRun, mock_step)
+      self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_called_once()
-    self.assertEqual(Status.kExecuting, self.scenario.status())
+    self.assertEqual(Status.EXECUTING, self.scenario.status())
 
   def test_execute_step_in_internal_error_state(self):
     mock_step = mock.Mock()
-    self.scenario._status = Status.kInternalError
+    self.scenario._status = Status.INTERNAL_ERROR
 
-    self.scenario._execute_step(Phase.kRun, mock_step)
+    self.scenario._execute_step(Phase.RUN, mock_step)
 
     mock_step.assert_not_called()
-    self.assertEqual(Status.kInternalError, self.scenario.status())
+    self.assertEqual(Status.INTERNAL_ERROR, self.scenario.status())
 
   def test_scenario_results_update_uninitialized(self):
     self.scenario._scenario_results_update()
@@ -868,7 +906,7 @@ class TestScenario(unittest.TestCase):
     ctr = CurieTestResult()
     result = mock.Mock(spec=IogenResult)
     result.get_result_pbs.return_value = [ctr]
-    self.scenario.phase = Phase.kRun
+    self.scenario.phase = Phase.RUN
     self.scenario.results_map = {"node_id": result}
     self.scenario.create_annotation("An important thing happened here")
 
@@ -892,7 +930,7 @@ class TestScenario(unittest.TestCase):
     result = mock.Mock(spec=IogenResult)
     result.get_result_pbs.return_value = [ctr]
     mock_stc.return_value = ["targets"]
-    self.scenario.phase = Phase.kRun
+    self.scenario.phase = Phase.RUN
     self.scenario.results_map = {"node_id": result}
     # self.scenario.prometheus_config_directory = "/a/fake/directory"
 
@@ -904,7 +942,7 @@ class TestScenario(unittest.TestCase):
 
   def test_scenario_results_update_setup(self):
     result = mock.Mock(spec=IogenResult)
-    self.scenario.phase = Phase.kSetup
+    self.scenario.phase = Phase.SETUP
 
     self.scenario._scenario_results_update()
 
@@ -922,7 +960,7 @@ class TestScenario(unittest.TestCase):
     result.get_result_pbs = mock.Mock()
     mock_stc.return_value = ["targets"]
     self.scenario.cluster = mock.Mock(spec=AcropolisCluster)
-    self.scenario.phase = Phase.kRun
+    self.scenario.phase = Phase.RUN
     self.scenario.results_map = {"Cluster Network Bandwidth": result}
     self.scenario._scenario_results_update("/fake/directory/targets.json")
 
@@ -933,7 +971,7 @@ class TestScenario(unittest.TestCase):
 
   def test_scenario_results_update_teardown(self):
     result = mock.Mock(spec=IogenResult)
-    self.scenario.phase = Phase.kTeardown
+    self.scenario.phase = Phase.TEARDOWN
 
     self.scenario._scenario_results_update()
 
@@ -998,7 +1036,7 @@ class TestScenario(unittest.TestCase):
 
   def test_pickle_four_corners(self):
     four_corners_directory = os.path.join(
-      environment.top, "curie", "test", "yaml", "four_corners_microbenchmark")
+      environment.top, "curie", "yaml", "four_corners_microbenchmark")
     scenario = scenario_parser.from_path(four_corners_directory)
     scenario.cluster = mock_cluster()
 

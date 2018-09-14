@@ -54,8 +54,8 @@ def return_until(before_value, after_value, duration_secs):
   return inner_func
 
 
-def mock_cluster(node_count=4):
-  cluster = mock.Mock(spec=Cluster)
+def mock_cluster(node_count=4, spec=Cluster):
+  cluster = mock.Mock(spec=spec)
   cluster_metadata = CurieSettings.Cluster()
   cluster_metadata.cluster_name = "MockCluster"
   nodes = [mock.Mock(spec=Node) for _ in xrange(node_count)]
@@ -64,6 +64,8 @@ def mock_cluster(node_count=4):
     node.node_index.return_value = id
     curr_node = cluster_metadata.cluster_nodes.add()
     curr_node.id = str(id)
+    curr_node.node_out_of_band_management_info.ip_address = "127.0.0.%d" % id
+    node.metadata.return_value = curr_node
   cluster.nodes.return_value = nodes
   cluster.node_count.return_value = len(nodes)
   cluster.metadata.return_value = cluster_metadata
@@ -137,6 +139,10 @@ def cluster_from_json(filepath):
   for node_config in config["nodes"]:
     cluster_node = cluster.cluster_nodes.add()
     cluster_node.id = node_config["hypervisor_addr"]
+    try:
+      cluster_node.svm_addr = node_config["svm_addr"]
+    except KeyError as err:
+      log.warning("Error parsing JSON: %s", err.message)
 
     cluster_node.node_out_of_band_management_info.SetInParent()
     oob = cluster_node.node_out_of_band_management_info

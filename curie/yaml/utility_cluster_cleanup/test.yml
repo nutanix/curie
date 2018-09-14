@@ -1,0 +1,38 @@
+name: utility_cluster_cleanup
+
+display_name: "Utility: Cluster Cleanup"
+
+summary:
+  Delete orphaned X-Ray VMs, images, and snapshots.
+
+description: |
+  <strong>Test Objectives</strong><br/>
+  X-Ray automatically performs cluster cleanup at the start and end of a test.
+  This utility can be used to perform a manual cluster cleanup, if desired.
+  Only objects created by previous X-Ray tests will be cleaned up.
+  <br/><br/>
+  <strong>Setup</strong>
+  <ol>
+    <li>Clean the cluster</li>
+  </ol>
+
+tags:
+  - utility
+
+estimated_runtime: 300
+
+vms: []
+
+workloads: []
+
+results: []
+
+setup:
+  - cluster.CleanUp: {}
+
+run:
+  # `run` must have length > 0, so this Wait is a no-op.
+  - test.Wait:
+      duration_secs: 1
+
+teardown: []

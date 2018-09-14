@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 class TestAcropolisCluster(unittest.TestCase):
   def setUp(self):
     self.cluster = util.cluster_from_json(gflags.FLAGS.cluster_config_path)
+    self.cluster.update_metadata(False)
     assert isinstance(self.cluster, AcropolisCluster), \
            "This test must run on an AHV cluster"
     self.scenario = Scenario(
@@ -54,9 +55,6 @@ class TestAcropolisCluster(unittest.TestCase):
 
     self.scenario.cluster.cleanup()
 
-    vms = self.cluster.find_vms([vm_name])
-    found_vms = [vm.vm_name() for vm in vms if vm is not None]
-    assert vm_name not in found_vms, "VM %s was still found after cleanup"
     found_images = self.__get_image_names()
     assert expected_goldimage_name not in found_images, \
       "Goldimage disk wasn't found in image service."

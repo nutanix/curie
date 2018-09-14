@@ -108,7 +108,7 @@ class Cluster(object):
     also include additional information intended for reporting.
 
     Note: this should only be called before the test begins executing steps in
-    the kSetup, kRun, and kTeardown phases.
+    the SETUP, RUN, and TEARDOWN phases.
     """
 
   @abstractmethod
@@ -376,7 +376,7 @@ class Cluster(object):
   @abstractmethod
   def cleanup(self, test_ids=()):
     """
-    Clean up any state (e.g., lingering goldimage and test VMs) on the cluster
+    Clean up any state (e.g., lingering goldimages) on the cluster
     for specified tests. If no test IDs are specified (empty list), then state
     is cleaned up for all tests regardless of their state.
     """

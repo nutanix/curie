@@ -105,9 +105,11 @@ class IpmiUtil(OobManagementUtil):
     """
     stdout, stderr = self.__execute_command_with_retries(["chassis", "status"])
 
-    return dict(
-      map(lambda tupl: map(str.strip, tupl),
-          map(lambda line: line.split(":", 1), stdout.splitlines())))
+    output_map = {}
+    for line in stdout.splitlines():
+      key, value = line.split(":")
+      output_map[key.strip()] = value.strip()
+    return output_map
 
   def power_cycle(self, async=False):
     """

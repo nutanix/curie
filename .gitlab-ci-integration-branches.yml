@@ -1,11 +1,6 @@
 .curie_integration_test_template_branches: &curie_integration_test_branches
   image: $IMAGE_NAME
   stage: integration_test
-  variables:
-    PS_SERVER_ADDRESS: gitlab-ee.rtp.nutanix.com-xray-hyperv_ps_server
-  services:
-    - name: gitlab-ee.rtp.nutanix.com:4567/xray/hyperv_ps_server:master-ci
-      alias: hyperv-ps-server
   only:
     - branches@xray/charon
   except:
@@ -55,45 +50,51 @@ integration/test_discovery_util.py (Branches, AHV):
     - curie_docker
     - ahv
 
-integration/test/steps/test_check.py (Branches, AHV):
+integration/steps/test_check.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - ahv
 
-integration/test/steps/test_meta.py (Branches, AHV):
-  <<: *curie_integration_test_branches
-  tags:
-    - curie_docker
-    - curie_failure
-    - ahv
-
-integration/test/steps/test_nodes.py (Branches, AHV):
+integration/steps/test_meta.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - curie_failure
     - ahv
 
-integration/test/steps/test_test.py (Branches, AHV):
+integration/steps/test_nodes.py (Branches, AHV):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - curie_failure
+    - ahv
+
+integration/steps/test_playbook.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - ahv
 
-integration/test/steps/test_vm_group.py (Branches, AHV):
+integration/steps/test_test.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - ahv
 
-integration/test/steps/test_vm_group_big_boot.py (Branches, AHV):
+integration/steps/test_vm_group.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - ahv
 
-integration/test/steps/test_workload.py (Branches, AHV):
+integration/steps/test_vm_group_big_boot.py (Branches, AHV):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - ahv
+
+integration/steps/test_workload.py (Branches, AHV):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
@@ -123,39 +124,45 @@ integration/test_discovery_util.py (Branches, ESX):
     - curie_docker
     - esx
 
-integration/test/steps/test_check.py (Branches, ESX):
+integration/steps/test_check.py (Branches, ESX):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - esx
 
-integration/test/steps/test_meta.py (Branches, ESX):
-  <<: *curie_integration_test_branches
-  tags:
-    - curie_docker
-    - curie_failure
-    - esx
-
-integration/test/steps/test_nodes.py (Branches, ESX):
+integration/steps/test_meta.py (Branches, ESX):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - curie_failure
     - esx
 
-integration/test/steps/test_test.py (Branches, ESX):
+integration/steps/test_nodes.py (Branches, ESX):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - curie_failure
+    - esx
+
+integration/steps/test_playbook.py (Branches, ESX):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - esx
 
-integration/test/steps/test_vm_group.py (Branches, ESX):
+integration/steps/test_test.py (Branches, ESX):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - esx
 
-integration/test/steps/test_workload.py (Branches, ESX):
+integration/steps/test_vm_group.py (Branches, ESX):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - esx
+
+integration/steps/test_workload.py (Branches, ESX):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
@@ -182,22 +189,14 @@ integration/test_discovery_util.py (Branches, Hyper-V / Nutanix):
     - hyperv
     - nutanix
 
-integration/test/steps/test_check.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_check.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - nutanix
 
-integration/test/steps/test_meta.py (Branches, Hyper-V / Nutanix):
-  <<: *curie_integration_test_branches
-  tags:
-    - curie_docker
-    - curie_failure
-    - hyperv
-    - nutanix
-
-integration/test/steps/test_nodes.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_meta.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
@@ -205,28 +204,43 @@ integration/test/steps/test_nodes.py (Branches, Hyper-V / Nutanix):
     - hyperv
     - nutanix
 
-integration/test/steps/test_test.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_nodes.py (Branches, Hyper-V / Nutanix):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - nutanix
+
+integration/steps/test_playbook.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - nutanix
 
-integration/test/steps/test_vm_group.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_test.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - nutanix
 
-integration/test/steps/test_vm_group_big_boot.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_vm_group.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - nutanix
 
-integration/test/steps/test_workload.py (Branches, Hyper-V / Nutanix):
+integration/steps/test_vm_group_big_boot.py (Branches, Hyper-V / Nutanix):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - hyperv
+    - nutanix
+
+integration/steps/test_workload.py (Branches, Hyper-V / Nutanix):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
@@ -254,22 +268,14 @@ integration/test_discovery_util.py (Branches, Hyper-V / S2D):
     - hyperv
     - s2d
 
-integration/test/steps/test_check.py (Branches, Hyper-V / S2D):
+integration/steps/test_check.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - s2d
 
-integration/test/steps/test_meta.py (Branches, Hyper-V / S2D):
-  <<: *curie_integration_test_branches
-  tags:
-    - curie_docker
-    - curie_failure
-    - hyperv
-    - s2d
-
-integration/test/steps/test_nodes.py (Branches, Hyper-V / S2D):
+integration/steps/test_meta.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
@@ -277,28 +283,43 @@ integration/test/steps/test_nodes.py (Branches, Hyper-V / S2D):
     - hyperv
     - s2d
 
-integration/test/steps/test_test.py (Branches, Hyper-V / S2D):
+integration/steps/test_nodes.py (Branches, Hyper-V / S2D):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - curie_failure
+    - hyperv
+    - s2d
+
+integration/steps/test_playbook.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - s2d
 
-integration/test/steps/test_vm_group.py (Branches, Hyper-V / S2D):
+integration/steps/test_test.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - s2d
 
-integration/test/steps/test_vm_group_big_boot.py (Branches, Hyper-V / S2D):
+integration/steps/test_vm_group.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker
     - hyperv
     - s2d
 
-integration/test/steps/test_workload.py (Branches, Hyper-V / S2D):
+integration/steps/test_vm_group_big_boot.py (Branches, Hyper-V / S2D):
+  <<: *curie_integration_test_branches
+  tags:
+    - curie_docker
+    - hyperv
+    - s2d
+
+integration/steps/test_workload.py (Branches, Hyper-V / S2D):
   <<: *curie_integration_test_branches
   tags:
     - curie_docker

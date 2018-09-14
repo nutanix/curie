@@ -321,7 +321,6 @@ class DiscoveryUtil(object):
     vmm_client = VmmClient(address=address, username=username,
                            password=password)
     with vmm_client:
-      vmm_client.login()
       log.debug("Connected to VMM %s", address)
       clusters = vmm_client.get_clusters()
       library_shares = vmm_client.get_library_shares()

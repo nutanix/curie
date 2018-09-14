@@ -86,6 +86,12 @@ results:
   - OLTP IOPS:
       vm_group: OLTP
       result_type: iops
+      result_hint: "Higher IOPS is better."
+      result_expected_value: 200
+      result_value_bands:
+        - name: 95%
+          upper: 227
+          lower: 172
       report_group: performance
       report_metrics:
         - Variability

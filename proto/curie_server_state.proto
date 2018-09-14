@@ -83,6 +83,9 @@ message CurieSettings {
       // TODO: add information for all HDDs/SSDs.
     }
     optional NodeHardware node_hardware = 3;
+
+    // IP address of CVM, if present
+    optional string svm_addr = 4;
   }
 
   message Cluster {

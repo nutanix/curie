@@ -12,11 +12,11 @@ from pkg_resources import resource_filename
 from curie import scenario_parser
 from curie.exception import CurieTestException
 from curie.scenario import Scenario, Phase
-from curie.test import steps
-from curie.test.result.base_result import BaseResult
-from curie.test.steps.cluster import CleanUp
-from curie.test.vm_group import VMGroup
-from curie.test.workload import Workload
+from curie import steps
+from curie.result.base_result import BaseResult
+from curie.steps.cluster import CleanUp
+from curie.vm_group import VMGroup
+from curie.workload import Workload
 from curie.testing import environment
 from curie.testing.util import mock_cluster
 
@@ -282,7 +282,7 @@ run:
 
   def test_from_path_multiple_found(self):
     path = resource_filename(
-      __name__, os.path.join("..", "..", "curie", "test", "yaml"))
+      __name__, os.path.join("..", "..", "curie", "yaml"))
     with self.assertRaises(ValueError) as ar:
       scenario_parser.from_path(path)
     self.assertIn("Multiple configuration files found at '%s': [" % path,
@@ -297,7 +297,7 @@ run:
   def test_from_path_packaged_scenarios(self):
     for path in Scenario.find_configuration_files():
       scenario = scenario_parser.from_path(path)
-      first_setup_step = scenario.steps[Phase.kSetup][0]
+      first_setup_step = scenario.steps[Phase.SETUP][0]
       self.assertIsInstance(
         first_setup_step, CleanUp,
         "The first step in the setup phase should be cluster.CleanUp "
@@ -311,9 +311,13 @@ run:
     self.assertFalse(scenario.readonly)
 
   def test_from_path_packaged_scenarios_small_large_clusters(self):
+    three_node_cluster = mock_cluster(3)
+    one_hundred_twenty_eight_node_cluster = mock_cluster(128)
     for path in Scenario.find_configuration_files():
-      for node_count in [3, 128]:
-        scenario_parser.from_path(path, cluster=mock_cluster(node_count))
+      scenario_parser.from_path(
+        path, cluster=three_node_cluster)
+      scenario_parser.from_path(
+        path, cluster=one_hundred_twenty_eight_node_cluster)
 
   def test_from_yaml_missing_required_argument(self):
     yaml_str = """
@@ -402,10 +406,10 @@ run:
     parsed = scenario_parser._parse_steps(scenario, data)
     self.assertIsInstance(parsed[0], tuple)
     self.assertIsInstance(parsed[0][0], steps.vm_group.CloneFromTemplate)
-    self.assertEqual(parsed[0][1], Phase.kSetup)
+    self.assertEqual(parsed[0][1], Phase.SETUP)
     self.assertIsInstance(parsed[1], tuple)
     self.assertIsInstance(parsed[1][0], steps.vm_group.PowerOn)
-    self.assertEqual(parsed[1][1], Phase.kRun)
+    self.assertEqual(parsed[1][1], Phase.RUN)
 
   def test_parse_steps_missing_required_phase(self):
     scenario = Scenario()
@@ -495,6 +499,32 @@ run:
       scenario_parser._parse_steps(scenario, data)
     self.assertIn("'run' phase, 'vm_group.PowerOn' step: Unexpected keyword "
                   "argument 'like'", str(ar.exception))
+
+  def test_parse_results(self):
+    scenario = Scenario()
+    yaml_str = """
+      vms:
+          - OLTP: {}
+      results:
+        - IOPS:
+            vm_group: OLTP
+            result_type: iops
+            result_hint: "Higher is better!"
+            result_expected_value: 10
+            result_value_bands:
+              - name: big band 0
+                upper: 1000
+                lower: 10
+    """
+    data = yaml.load(yaml_str)
+    self.__create_stubs(scenario, data)
+    parsed = scenario_parser._parse_section(scenario, data, "results",
+                                            BaseResult)
+    self.assertEqual(parsed["IOPS"].kwargs["result_hint"],
+                     "Higher is better!")
+    self.assertEqual(parsed["IOPS"].kwargs["result_expected_value"], 10)
+    self.assertEqual(parsed["IOPS"].kwargs["result_value_bands"],
+                     [{"name": "big band 0", "upper": 1000, "lower": 10}])
 
   def test_parse_section(self):
     scenario = Scenario()

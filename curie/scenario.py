@@ -22,49 +22,50 @@ from curie.curie_test_pb2 import CurieTestPhase, CurieTestResult
 from curie.curie_test_pb2 import CurieTestState, CurieTestStatus
 from curie.exception import ScenarioStoppedError, ScenarioTimeoutError
 from curie.os_util import OsUtil
-from curie.test.result.cluster_result import ClusterResult
-from curie.test.scenario_util import ScenarioUtil
-from curie.test.steps import check, nodes
-from curie.test.steps._base_step import BaseStep
+from curie.result.cluster_result import ClusterResult
+from curie.scenario_util import ScenarioUtil
+from curie.steps import check, nodes
+from curie.steps._base_step import BaseStep
+from curie.steps.meta import MetaStep
 from curie.util import CurieUtil
 
 log = logging.getLogger(__name__)
 
 
 class Phase(Enum):
-  kPreSetup = 1
-  kSetup = 2
-  kRun = 3
-  kTeardown = 4
+  PRE_SETUP = 1
+  SETUP = 2
+  RUN = 3
+  TEARDOWN = 4
 
 
 class Status(Enum):
   # New states.
-  kNotStarted = 0
+  NOT_STARTED = 0
   # Active states.
-  kExecuting = 1
-  kStopping = 2
-  kFailing = 3
+  EXECUTING = 1
+  STOPPING = 2
+  FAILING = 3
   # Terminal states.
-  kSucceeded = 4
-  kFailed = 5
-  kStopped = 6
-  kCanceled = 7
-  kInternalError = 8
+  SUCCEEDED = 4
+  FAILED = 5
+  STOPPED = 6
+  CANCELED = 7
+  INTERNAL_ERROR = 8
 
   def is_new(self):
     """
     Returns True if never started, or False otherwise.
     """
-    return self in [Status.kNotStarted]
+    return self in [Status.NOT_STARTED]
 
   def is_active(self):
     """
     Returns True if in progress, or False otherwise.
     """
-    return self in [Status.kExecuting,
-                    Status.kStopping,
-                    Status.kFailing]
+    return self in [Status.EXECUTING,
+                    Status.STOPPING,
+                    Status.FAILING]
 
   def is_terminal(self):
     """
@@ -95,7 +96,6 @@ class Scenario(object):
     self.results_map = dict()
     self.source_directory = source_directory
     self.steps = {phase: [] for phase in Phase}
-    self.requirements = set()
     self.yaml_str = None
     self.vars = {}
     # Readonly is used to tell X-Ray to not allow deletion of this scenario.
@@ -107,12 +107,12 @@ class Scenario(object):
 
     self._start_time_secs = None
     self._end_time_secs = None
-    self._status = Status.kNotStarted
+    self._status = Status.NOT_STARTED
     self._annotations = []
     self._threads = []
     self._phase_start_time_secs = {phase: None for phase in Phase}
+    self._lock = threading.RLock()
 
-    self.__lock = threading.RLock()
     self.__result_pbs = []
     self.__sleep_cv = threading.Condition()
     self.__error_message = None
@@ -132,18 +132,18 @@ class Scenario(object):
              self._status))
 
   def __getstate__(self):
-    with self.__lock:
+    with self._lock:
       state = self.__dict__.copy()
       # Remove unpicklable entries.
       del state["cluster"]
-      del state["_Scenario__lock"]
+      del state["_lock"]
       del state["_Scenario__sleep_cv"]
       return state
 
   def __setstate__(self, state):
     self.__dict__.update(state)
     self.cluster = None
-    self.__lock = threading.RLock()
+    self._lock = threading.RLock()
     self.__sleep_cv = threading.Condition()
 
   @staticmethod
@@ -163,7 +163,7 @@ class Scenario(object):
       list of str: Absolute paths to scenario configuration files.
     """
     if root is None:
-      root = resource_filename(__name__, os.path.join("test", "yaml"))
+      root = resource_filename(__name__, "yaml")
     if not os.path.isdir(root):
       raise ValueError("'%s' must be a directory" % root)
     paths = []
@@ -202,7 +202,7 @@ class Scenario(object):
     """
     Returns the current results of this scenario.
     """
-    with self.__lock:
+    with self._lock:
       for result in self.__result_pbs:
         del result.data_2d.x_annotations[:]
         result.data_2d.x_annotations.extend(self._annotations)
@@ -212,14 +212,14 @@ class Scenario(object):
     """
     Returns the current status of this scenario.
     """
-    with self.__lock:
+    with self._lock:
       return self._status
 
   def error_message(self):
     """
     Returns error message if one has occurred during the scenario, else None.
     """
-    with self.__lock:
+    with self._lock:
       return self.__error_message
 
   def test_id(self):
@@ -268,7 +268,7 @@ class Scenario(object):
     Returns:
       float or None: Seconds since epoch, or None.
     """
-    with self.__lock:
+    with self._lock:
       return self._phase_start_time_secs.get(phase)
 
   def add_step(self, step, phase):
@@ -283,7 +283,7 @@ class Scenario(object):
       ValueError:
         If the phase is invalid.
     """
-    with self.__lock:
+    with self._lock:
       if not self._status.is_new():
         raise RuntimeError("%s: Can not add step %s because the scenario has "
                            "already been started" % (self, step))
@@ -291,7 +291,12 @@ class Scenario(object):
         raise ValueError("%s: Can not add step %s because the phase %r is "
                          "invalid" % (self, step, phase))
       self.steps[phase].append(step)
-      self.requirements.update(step.requirements())
+
+  def requirements(self):
+    req = set()
+    for phase, step in self.itersteps():
+      req.update(step.requirements())
+    return req
 
   def itersteps(self):
     """
@@ -312,7 +317,7 @@ class Scenario(object):
       list of (Phase, BaseStep): List of completed steps and their phases.
     """
     return [(phase, step) for phase, step in self.itersteps()
-            if step.has_finished()]
+            if step.status == step.status.SUCCEEDED]
 
   def remaining_steps(self):
     """
@@ -322,7 +327,28 @@ class Scenario(object):
       list of (Phase, BaseStep): List of remaining steps and their phases.
     """
     return [(phase, step) for phase, step in self.itersteps()
-            if not step.has_finished()]
+            if step.status != step.status.SUCCEEDED]
+
+  def progress(self):
+    """
+    Return the completion as a float between 0.0 and 1.0.
+
+    A value of 0 is returned if no progress has been made. A value of
+    1 is returned if all steps are completed.
+
+    Returns:
+      float: Completion progress between 0.0 and 1.0.
+    """
+    completed = 0
+    total = 0
+    for phase, step in self.itersteps():
+      total += 1
+      if step.status.is_terminal():
+        completed += 1
+    if total == 0:
+      return 0.0
+    else:
+      return completed / float(total)
 
   def duration_secs(self):
     """
@@ -349,7 +375,7 @@ class Scenario(object):
     """
     Returns True if the scenario should stop cleanly as soon as possible.
     """
-    return self.status() in [Status.kStopping, Status.kFailing]
+    return self.status() in [Status.STOPPING, Status.FAILING]
 
   def start(self):
     """
@@ -360,7 +386,7 @@ class Scenario(object):
     Raises:
       RuntimeError: If the scenario is not in a new state.
     """
-    with self.__lock:
+    with self._lock:
       if not self._status.is_new():
         raise RuntimeError("%s: Can not start because it has already been "
                            "started" % self)
@@ -371,9 +397,10 @@ class Scenario(object):
       if self.output_directory is None:
         raise RuntimeError("%s: Can not start because output directory has "
                            "not been set" % self)
-      if self.steps[Phase.kPreSetup]:
+      if self.steps[Phase.PRE_SETUP]:
         raise RuntimeError("%s: Steps should not be manually added to the "
                            "PreSetup phase" % self)
+      self._expand_meta_steps()
       self._initialize_presetup_phase()
       try:
         os.makedirs(self.output_directory)
@@ -405,7 +432,7 @@ class Scenario(object):
           f.write(self.yaml_str)
         log.debug("%s: Wrote parsed scenario definition to '%s'",
                   self, yaml_path)
-      self._status = Status.kExecuting
+      self._status = Status.EXECUTING
       self._start_time_secs = time.time()
     self._threads.append(threading.Thread(target=self._step_loop,
                                           name="step_loop"))
@@ -426,17 +453,17 @@ class Scenario(object):
     state. If the scenario is terminal or already stopping, this method is a
     no-op.
     """
-    with self.__lock:
-      if self.status() == Status.kStopping:
+    with self._lock:
+      if self.status() == Status.STOPPING:
         log.info("%s is already marked to stop", self)
       elif self._status.is_terminal():
         log.info("%s can not be stopped because it is already in a terminal "
                  "state", self)
       elif self._status.is_new():
-        self._status = Status.kCanceled
+        self._status = Status.CANCELED
         log.info("%s has been canceled", self)
       else:  # Is active.
-        self._status = Status.kStopping
+        self._status = Status.STOPPING
         log.info("%s has been marked to stop", self)
 
   def join(self, timeout=None):
@@ -466,21 +493,21 @@ class Scenario(object):
         else:
           log.debug("%s is not alive", thread)
     except BaseException as exc:
-      with self.__lock:
-        self._status = Status.kInternalError
+      with self._lock:
+        self._status = Status.INTERNAL_ERROR
         log.exception("Unhandled exception occurred while joining threads")
         self.__error_message = str(exc)
     finally:
-      with self.__lock:
-        if self._status == Status.kExecuting:
-          self._status = Status.kSucceeded
-        elif self._status == Status.kFailing:
-          self._status = Status.kFailed
-        elif self._status == Status.kStopping:
-          self._status = Status.kStopped
+      with self._lock:
+        if self._status == Status.EXECUTING:
+          self._status = Status.SUCCEEDED
+        elif self._status == Status.FAILING:
+          self._status = Status.FAILED
+        elif self._status == Status.STOPPING:
+          self._status = Status.STOPPED
         else:
           log.error("%s exited thread join in an unexpected state", self)
-          self._status = Status.kInternalError
+          self._status = Status.INTERNAL_ERROR
         assert self._status.is_terminal()
         log.info("%s has finished", self)
 
@@ -516,7 +543,7 @@ class Scenario(object):
     x_annotation = CurieTestResult.Data2D.XAnnotation()
     x_annotation.x_val = int(time.time())
     x_annotation.description = description
-    with self.__lock:
+    with self._lock:
       self._annotations.append(x_annotation)
     log.debug("Annotation for '%s' created", description)
 
@@ -547,7 +574,7 @@ class Scenario(object):
     Returns:
       CurieTestState: Curie test state protobuf.
     """
-    with self.__lock:
+    with self._lock:
       curie_test_state = CurieTestState()
       curie_test_state.test_id = self.id
       curie_test_state.status = CurieTestStatus.Type.Value(self._status.name)
@@ -556,14 +583,18 @@ class Scenario(object):
         curie_test_state.completed_steps.add(
           phase=CurieTestPhase.Type.Value(phase.name),
           step_num=step_num,
-          step_description=step.description
+          step_description=step.description,
+          status=step.status.name,
+          message=str(step.exception) if step.exception else None
         )
         step_num += 1
       for phase, step in self.remaining_steps():
         curie_test_state.remaining_steps.add(
           phase=CurieTestPhase.Type.Value(phase.name),
           step_num=step_num,
-          step_description=step.description
+          step_description=step.description,
+          status=step.status.name,
+          message=str(step.exception) if step.exception else None
         )
         step_num += 1
       error_msg = self.error_message()
@@ -665,17 +696,29 @@ class Scenario(object):
 
     This method will overwrite all existing steps in the PreSetup phase.
     """
-    if self.steps[Phase.kPreSetup]:
+    if self.steps[Phase.PRE_SETUP]:
       log.debug("Existing PreSetup steps will be overwritten: %s",
-                self.steps[Phase.kPreSetup])
-    self.steps[Phase.kPreSetup] = []
-    if BaseStep.OOB_CONFIG in self.requirements:
-      self.add_step(check.OobConfigured(self), Phase.kPreSetup)
-      self.add_step(nodes.PowerOn(self, "all"), Phase.kPreSetup)
-    self.add_step(check.ClustersMatch(self), Phase.kPreSetup)
-    self.add_step(check.ClusterReady(self), Phase.kPreSetup)
-    self.add_step(check.VMStorageAvailable(self), Phase.kPreSetup)
+                self.steps[Phase.PRE_SETUP])
+    self.steps[Phase.PRE_SETUP] = []
+    if BaseStep.OOB_CONFIG in self.requirements():
+      self.add_step(check.OobConfigured(self), Phase.PRE_SETUP)
     log.debug("Finished inserting presetup checks")
+    self._expand_meta_steps()  # In case any new MetaSteps added above.
+
+  def _expand_meta_steps(self):
+    """
+    Expand all MetaSteps into their constituent Steps.
+    """
+    expanded_steps = {phase: [] for phase in Phase}
+    for phase, step in self.itersteps():
+      if isinstance(step, MetaStep):
+        for substep in step.itersteps():
+          log.debug("Expanded substep '%s'" % substep)
+          expanded_steps[phase].append(substep)
+      else:
+        expanded_steps[phase].append(step)
+    self.steps = expanded_steps
+    log.debug("Finished expanding MetaSteps")
 
   def _step_loop(self):
     """
@@ -686,7 +729,7 @@ class Scenario(object):
     # If any steps that fail to verify are returned, the test is failing.
     failed_steps = self.verify_steps()
     if failed_steps:
-      self._status = Status.kFailing
+      self._status = Status.FAILING
       self.__error_message = (
         "%d %s failed to verify: %s" %
         (len(failed_steps),
@@ -696,12 +739,12 @@ class Scenario(object):
       for phase, step in self.itersteps():
         self._execute_step(phase, step)
     except BaseException as exc:
-      with self.__lock:
-        self._status = Status.kInternalError
+      with self._lock:
+        self._status = Status.INTERNAL_ERROR
         log.exception("Unhandled exception occurred inside _step_loop")
         self.__error_message = str(exc)
     finally:
-      with self.__lock:
+      with self._lock:
         self._end_time_secs = time.time()
         log.info("%s: All steps finished", self)
         log.debug("_step_loop notifying all threads to wake up")
@@ -725,8 +768,8 @@ class Scenario(object):
           self.__sleep_cv.wait(interval_secs)
         self._scenario_results_update(target_config_path)
     except BaseException as exc:
-      with self.__lock:
-        self._status = Status.kInternalError
+      with self._lock:
+        self._status = Status.INTERNAL_ERROR
         self.__error_message = str(exc)
         log.exception("Unhandled exception occurred inside "
                       "_scenario_results_loop")
@@ -751,8 +794,8 @@ class Scenario(object):
         if append_time_secs is not None:
           last_appended = append_time_secs
     except BaseException as exc:
-      with self.__lock:
-        self._status = Status.kInternalError
+      with self._lock:
+        self._status = Status.INTERNAL_ERROR
         self.__error_message = str(exc)
         log.exception("Unhandled exception occurred inside "
                       "_cluster_results_loop")
@@ -768,14 +811,14 @@ class Scenario(object):
     If an exception occurs, a failing state will be set. If the scenario is
     in a stopping or failing state, the step will be skipped (not executed).
     """
-    with self.__lock:
-      if self._status == Status.kStopping:
+    with self._lock:
+      if self._status == Status.STOPPING:
         log.info("%s marked to stop: Skipping '%s'", self, step)
         return
-      elif self._status == Status.kFailing:
+      elif self._status == Status.FAILING:
         log.info("%s failed: Skipping '%s'", self, step)
         return
-      elif self._status == Status.kInternalError:
+      elif self._status == Status.INTERNAL_ERROR:
         log.info("%s entered an internal error state: Skipping '%s'",
                  self, step)
         return
@@ -791,7 +834,7 @@ class Scenario(object):
     try:
       step()
     except ScenarioStoppedError as exc:
-      with self.__lock:
+      with self._lock:
         if not self.should_stop():
           log.error("A ScenarioStoppedError was raised, but %s should_stop() "
                     "is returning False (should return True)", self)
@@ -800,8 +843,8 @@ class Scenario(object):
           log.warning(str(exc))
     except Exception as exc:
       log.exception("Exception during '%s'", step)
-      with self.__lock:
-        self._status = Status.kFailing
+      with self._lock:
+        self._status = Status.FAILING
         self.__error_message = str(exc)
 
   def _scenario_results_update(self, prometheus_target_config_path=None):
@@ -816,8 +859,8 @@ class Scenario(object):
         log.debug("Skipped writing Prometheus static target configuration "
                   "files: Output file not configured")
       for result_name, result in self.results_map.iteritems():
-        with self.__lock:
-          if self.phase != Phase.kRun:
+        with self._lock:
+          if self.phase != Phase.RUN:
             log.debug("Skipping scenario results update while in %s phase",
                       self.phase.name)
             return
@@ -832,7 +875,7 @@ class Scenario(object):
       log.exception("An exception occurred while updating scenario results. "
                     "This operation will be retried.")
     else:
-      with self.__lock:
+      with self._lock:
         self.__result_pbs = result_pbs
 
   def _prometheus_target_config_update(self, filepath):
