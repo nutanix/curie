@@ -29,7 +29,7 @@ RUN pip install --upgrade \
       ansible==2.4.3 \
       pyvmomi \
       setuptools \
-      sphinx \
+      sphinx==1.7.9 \
       sphinx_rtd_theme
 
 # Install protobuf.
