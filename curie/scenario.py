@@ -865,8 +865,9 @@ class Scenario(object):
                       self.phase.name)
             return
         if isinstance(result, ClusterResult):
-          if isinstance(self.cluster, AcropolisCluster) and \
-            (result.metric_name == "NetReceived.Avg.KilobytesPerSecond"):
+          if isinstance(self.cluster, AcropolisCluster) and (
+            (result.metric_name == "NetReceived.Avg.KilobytesPerSecond") or
+            (result.metric_name == "NetTransmitted.Avg.KilobytesPerSecond")):
             log.debug("Skipping result update since AHV API "
                       "does not return valid results for network statistics")
             continue

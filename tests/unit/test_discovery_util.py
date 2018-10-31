@@ -210,6 +210,8 @@ class TestCurieDiscoveryUtil(unittest.TestCase):
         "version": "10.0.14393.351"
       }
     ]
+    m_vmm_cli.get_vmm_version.return_value = "4.1.0.1"
+
     m_ntnx_api = n_NtnxApiCli.return_value
     cluster_inc_id = 12345
     cluster_uuid = str(uuid.uuid4())
@@ -224,7 +226,7 @@ class TestCurieDiscoveryUtil(unittest.TestCase):
                      "5.0.2")
     self.assertEqual(
       cluster_pb.cluster_management_server_info.vmm_info.vmm_version,
-      "Unknown")
+      "4.1.0.1")
     self.assertEqual(cluster_pb.cluster_hypervisor_info.hyperv_info.version,
                      ["10.0.14393.351", "10.0.14393.351", "10.0.14393.351"])
 

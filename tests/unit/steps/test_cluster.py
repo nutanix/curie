@@ -23,7 +23,8 @@ class TestStepsCluster(unittest.TestCase):
       cluster=self.cluster,
       output_directory=environment.test_output_dir(self))
 
-  def test_CleanUp_default(self):
+  @mock.patch("curie.node.IpmiUtil")
+  def test_CleanUp_default(self, m_IpmiUtil):
     meta_step = steps.cluster.CleanUp(self.scenario)
     for step in meta_step.itersteps():
       step()

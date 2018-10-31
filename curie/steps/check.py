@@ -105,7 +105,7 @@ class VSphereDatastoreVisible(BaseStep):
   def _run(self):
     node = self.scenario.cluster.nodes()[self.node_index]
     if not self.scenario.cluster.datastore_visible(self.datastore_name,
-                                                   host_name=node.node_ip()):
+                                                   host_name=node.node_id()):
       raise CurieTestException(
         cause=
         "Datastore '%s' is not visible on vSphere node '%s'." %
@@ -319,6 +319,57 @@ class ClustersMatch(BaseStep):
   def _run(self):
     ScenarioUtil.prereq_runtime_storage_cluster_mgmt_cluster_match(
       self.scenario.cluster)
+
+
+class PrismHostInSameCluster(BaseStep):
+  """
+  Verify that the node is a member of the Prism cluster.
+
+  Args:
+    scenario (Scenario): Scenario this step belongs to.
+    node_index (int): Index of the node to check.
+    annotate (bool): If True, annotate key points in the step in the test's
+      results.
+  """
+  def __init__(self, scenario, node_index, annotate=True):
+    super(PrismHostInSameCluster, self).__init__(scenario, annotate=annotate)
+    self.node_index = node_index
+    self.description = ("Verifying node '%s' is a member of the Prism "
+                        "cluster" % self.node_index)
+
+  def verify(self):
+    if not isinstance(self.scenario.cluster, NutanixClusterDPMixin):
+      raise CurieTestException(
+        cause=
+        "Step %s is only compatible with Nutanix clusters." %
+        self.name,
+        impact=
+        "This Scenario is incompatible with this cluster.",
+        corrective_action=
+        "Please choose a different cluster, or different Scenario."
+      )
+
+  def _run(self):
+    node = self.scenario.cluster.nodes()[self.node_index]
+    client = NutanixRestApiClient.from_proto(
+      self.scenario.cluster.metadata().cluster_software_info.nutanix_info)
+    for item in client.hosts_get()["entities"]:
+      if item["hypervisorAddress"] == node.node_ip():
+        break  # Success
+    else:
+      raise CurieTestException(
+        cause=
+        "Node '%s' with hypervisor address '%s' is not a member of the "
+        "Nutanix cluster managed at '%s'." %
+        (self.node_index, node.node_id(), client.host),
+        impact=
+        "The configured nodes belong to multiple Nutanix clusters, which is "
+        "not supported.",
+        corrective_action=
+        "Please choose a set of nodes that belong to a single Nutanix "
+        "cluster. If the target is configured for metro availability, please "
+        "choose nodes that all belong to a single site."
+      )
 
 
 class ClusterReady(BaseStep):

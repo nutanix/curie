@@ -237,6 +237,44 @@ class PrometheusAdapter(object):
       iops_floor=iops_floor)
     return self.query_range(query, start, end, step=step)
 
+  @CurieUtil.log_duration
+  def get_generic(self, vm_group, start, end, query,
+                  step=None, agg_func=None):
+    """
+    Convenience for querying generic metrics for a VM Group.
+
+    The string `__curie_filter_scenario__` will be replaced by a filter
+    string for the current scenario, and `__curie_filter_vm_group__`
+    will be replaced by a filter string for the VM group. If both of
+    these strings are not present, the query result may not be specific
+    to the expected set of VMs.
+
+    Args:
+      vm_group (curie.vm_group.VMGroup): VM Group of interest.
+      start (int, float, or datetime): Start of the date range. See
+        `query_range` for more details.
+      end (int, float, or datetime): End of the date range. See `query_range`
+        for more details.
+      query (str): The query string.
+      step (str): The query_range "step" parameter. See `query_range` for more
+        details.
+      agg_func (str): Function to use while aggregating the results. See
+        `_aggregate` for more details.
+
+    Returns:
+      dict: Returned value from PrometheusAdapter.query_range.
+
+    Raises:
+      PrometheusAPIError: Passed through from PrometheusAdapter.query_range.
+    """
+    query = query.replace("__curie_filter_scenario__",
+                          "scenario_id=\"%s\"" % vm_group._scenario.id)
+    query = query.replace("__curie_filter_vm_group__",
+                          "vm_group=\"%s\"" % vm_group.name())
+    if agg_func:
+      query = _aggregate(query, agg_func, by=["vm_group"])
+    return self.query_range(query, start, end, step=step)
+
 
 def to_series(result, dropna=None):
   """
@@ -321,7 +359,7 @@ def target_config(targets, **labels):
   return {"targets": targets, "labels": labels}
 
 
-def scenario_target_config(scenario, worker_exporter_port=9100):
+def scenario_target_config(scenario):
   """
   Generate a Prometheus target configuration for a Curie Scenario.
 
@@ -338,16 +376,17 @@ def scenario_target_config(scenario, worker_exporter_port=9100):
       ip = vm.vm_ip()
       if not ip:
         continue
-      config = target_config(
-        ["%s:%s" % (ip, worker_exporter_port)],
-        job="xray",
-        instance=vm.vm_name(),
-        scenario_id=str(scenario.id),
-        scenario_display_name=scenario.display_name,
-        scenario_name=scenario.name,
-        cluster_name=scenario.cluster.name(),
-        vm_group=vm_group.name())
-      configs.append(config)
+      for worker_exporter_port in vm_group.exporter_ports:
+        config = target_config(
+          ["%s:%s" % (ip, worker_exporter_port)],
+          job="xray",
+          instance=vm.vm_name(),
+          scenario_id=str(scenario.id),
+          scenario_display_name=scenario.display_name,
+          scenario_name=scenario.name,
+          cluster_name=scenario.cluster.name(),
+          vm_group=vm_group.name())
+        configs.append(config)
   return configs
 
 

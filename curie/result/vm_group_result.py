@@ -36,6 +36,9 @@ class VMGroupResult(BaseResult):
     elif self.result_type == "latency":
       self.x_unit = curie_test_pb2.CurieTestResult.Data2D.kUnixTimestamp
       self.y_unit = curie_test_pb2.CurieTestResult.Data2D.kMicroseconds
+    elif self.result_type == "generic":
+      self.x_unit = curie_test_pb2.CurieTestResult.Data2D.kUnixTimestamp
+      self.y_unit = curie_test_pb2.CurieTestResult.Data2D.kCount
     else:
       raise CurieTestException("Unexpected results type '%s'" %
                                self.result_type)
@@ -93,6 +96,10 @@ class VMGroupResult(BaseResult):
       data = prometheus_adapter.get_avg_disk_latency(
         self.vm_group, run_start, run_end, agg_func=self.aggregate,
         step=self.step)
+    elif self.result_type == "generic":
+      data = prometheus_adapter.get_generic(
+        self.vm_group, run_start, run_end, query=self.kwargs["query"],
+        agg_func=self.aggregate, step=self.step)
     else:
       raise ValueError("Unexpected result_type %r" % self.result_type)
     return self.series_list_to_result_pbs(prometheus.to_series_list(data))

@@ -97,8 +97,11 @@ results:
   - Cluster CPU Usage:
       metric: CpuUsage.Avg.Megahertz
       aggregate: sum
-  - Cluster Network Bandwidth:
+  - Cluster Network Received:
       metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+  - Cluster Network Transmitted:
+      metric: NetTransmitted.Avg.KilobytesPerSecond
       aggregate: sum
 
 setup:

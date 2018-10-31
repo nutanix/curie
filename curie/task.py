@@ -1095,11 +1095,11 @@ class HypervTaskPoller(TaskPoller):
                len(self._active_task_id_set), self._remaining_task_count,
                self._total_task_count)
 
-      active_task_descriptors = set()
+      active_task_descriptors = []
       for task_id in self._active_task_id_set:
         task = self._id_task_map[task_id]
         if not task._state.status == TaskStatus.kPendingRestart:
-          active_task_descriptors.add(self._id_task_map[task_id]._descriptor)
+          active_task_descriptors.append(self._id_task_map[task_id]._descriptor)
 
       updated_tasks = {}
       if active_task_descriptors:

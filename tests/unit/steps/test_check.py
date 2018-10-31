@@ -6,11 +6,13 @@ import unittest
 from mock import mock
 
 from curie.exception import CurieTestException
-from curie.steps import check
+from curie.nutanix_vsphere_cluster import NutanixVsphereCluster
 from curie.scenario import Scenario
+from curie.steps import check
 from curie.testing import environment
 from curie.testing.util import mock_cluster
 from curie.vm import Vm
+from curie.vsphere_cluster import VsphereCluster
 
 
 class TestStepsCheck(unittest.TestCase):
@@ -61,3 +63,69 @@ class TestStepsCheck(unittest.TestCase):
       "Traceback (most recent call last):",
       str(ar.exception))
     self.assertIn("IOError: Oh noes", ar.exception.traceback)
+
+  def test_VSphereDatastoreVisible_nodeid_is_hostname(self):
+    self.cluster = mock_cluster(spec=VsphereCluster)
+    self.scenario = Scenario(
+      cluster=self.cluster,
+      output_directory=environment.test_output_dir(self))
+    for index, cluster_node in enumerate(self.cluster.nodes()):
+      cluster_node.node_id.return_value = "fake_node_%d.rtp.nutanix.com" % index
+    step = check.VSphereDatastoreVisible(self.scenario, "fake_datastore_name", 0)
+    step()
+    self.scenario.cluster.datastore_visible.assert_called_once_with("fake_datastore_name", host_name="fake_node_0.rtp.nutanix.com")
+
+  @mock.patch("curie.steps.check.NutanixRestApiClient")
+  def test_PrismHostsInSameCluster_ok(self, m_NutanixRestApiClient):
+    self.cluster = mock_cluster(spec=NutanixVsphereCluster)
+    self.scenario = Scenario(
+      cluster=self.cluster,
+      output_directory=environment.test_output_dir(self))
+
+    m_client = mock.Mock()
+    m_client.host = "fake_prism_host"
+    m_client.hosts_get.return_value = {
+      "entities": [
+        {"hypervisorAddress": "169.254.0.0"},
+        {"hypervisorAddress": "169.254.0.1"},
+        {"hypervisorAddress": "169.254.0.2"},
+        {"hypervisorAddress": "169.254.0.3"},
+      ]
+    }
+    m_NutanixRestApiClient.from_proto.return_value = m_client
+
+    step = check.PrismHostInSameCluster(self.scenario, 2)
+    step()
+
+  @mock.patch("curie.steps.check.NutanixRestApiClient")
+  def test_PrismHostsInSameCluster_missing(self, m_NutanixRestApiClient):
+    self.cluster = mock_cluster(spec=NutanixVsphereCluster)
+    self.scenario = Scenario(
+      cluster=self.cluster,
+      output_directory=environment.test_output_dir(self))
+
+    m_client = mock.Mock()
+    m_client.host = "fake_prism_host"
+    m_client.hosts_get.return_value = {
+      "entities": [
+        {"hypervisorAddress": "169.254.0.0"},
+        {"hypervisorAddress": "169.254.0.1"},
+        # {"hypervisorAddress": "169.254.0.2"},
+        {"hypervisorAddress": "169.254.0.3"},
+      ]
+    }
+    m_NutanixRestApiClient.from_proto.return_value = m_client
+
+    step = check.PrismHostInSameCluster(self.scenario, 2)
+    with self.assertRaises(CurieTestException) as ar:
+      step()
+    self.assertEqual(
+      "Cause: Node '2' with hypervisor address '169.254.0.2' is not a member "
+      "of the Nutanix cluster managed at 'fake_prism_host'.\n\n"
+      "Impact: The configured nodes belong to multiple Nutanix clusters, "
+      "which is not supported.\n\n"
+      "Corrective Action: Please choose a set of nodes that belong to a "
+      "single Nutanix cluster. If the target is configured for metro "
+      "availability, please choose nodes that all belong to a single site.\n\n"
+      "Traceback: None",
+      str(ar.exception))

@@ -162,21 +162,12 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
   #
   #----------------------------------------------------------------------------
 
-  def node_metadata(self, node_id):
-    node_uuid_metadata_id_map = self.get_node_uuid_metadata_id_map()
-    if node_id in node_uuid_metadata_id_map:
-      node_id = node_uuid_metadata_id_map[node_id]
-    CHECK(node_id in self._node_id_metadata_map,
-          "Invalid node_id '%s'" % node_id)
-    return self._node_id_metadata_map.get(node_id)
-
   def update_metadata(self, include_reporting_fields):
     cluster_json = self.__lookup_cluster_json()
 
-    self._node_id_metadata_map = dict(
-      [(node.id, node) for node in self._metadata.cluster_nodes])
+    self._node_id_metadata_map = {node.id: node
+                                  for node in self._metadata.cluster_nodes}
 
-    found_node_id_set = set()
     node_uuid_metadata_id_map = self.get_node_uuid_metadata_id_map()
     for node_json in self._prism_client.hosts_get().get("entities", []):
       if node_json["clusterUuid"] != cluster_json["clusterUuid"]:
@@ -184,25 +175,11 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
       try:
         curr_node_identifier = node_uuid_metadata_id_map[node_json["uuid"]]
       except KeyError:
-        raise CurieTestException(
-          cause=
-          "Node with UUID '%s' found in hosts_get response, but not in the "
-          "Curie cluster metadata." % node_json["uuid"],
-          impact=
-          "The configured cluster can not be used because the nodes chosen "
-          "for this cluster do not exactly match the nodes in AHV.",
-          corrective_action=
-          "Please check that all of the nodes in the AHV cluster are part of "
-          "the cluster configuration. For example, if the AHV cluster has "
-          "four nodes, please check that all four nodes are being used in the "
-          "Curie cluster configuration."
-        )
+        # If the node is missing in the metadata, skip it.
+        continue
       node_proto = self._node_id_metadata_map.get(curr_node_identifier)
       CHECK(node_proto)
-      found_node_id_set.add(curr_node_identifier)
-      # TODO (jklein): Expand proto definition to allow for display name,
-      # UUID, and IP address as separate entries.
-      node_proto.id = curr_node_identifier
+      node_proto.id = node_json["uuid"]
 
       if include_reporting_fields:
         node_hw = node_proto.node_hardware
@@ -211,8 +188,6 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
         node_hw.num_cpu_threads = node_json["numCpuThreads"]
         node_hw.cpu_hz = node_json["cpuFrequencyInHz"]
         node_hw.memory_size = node_json["memoryCapacityInBytes"]
-
-    CHECK(found_node_id_set == set(self._node_id_metadata_map.keys()))
 
     if include_reporting_fields:
       # TODO (jklein): AHV info per-node.
@@ -224,16 +199,30 @@ class AcropolisCluster(NutanixClusterDPMixin, Cluster):
   def get_node_uuid_metadata_id_map(self):
     node_uuid_metadata_id_map = {}
     for node_id in [n.id for n in self._metadata.cluster_nodes]:
-      curr_node_uuid = self.identifier_to_node_uuid(self._prism_client,
-                                                    node_id)
-      node_uuid_metadata_id_map[curr_node_uuid] = node_id
+      try:
+        curr_node_uuid = self.identifier_to_node_uuid(self._prism_client,
+                                                      node_id)
+      except Exception:
+        raise CurieTestException(
+          cause=
+          "Node with ID '%s' is in the Curie cluster metadata, but not "
+          "found in the AHV cluster." % node_id,
+          impact=
+          "The cluster configuration is invalid.",
+          corrective_action=
+          "Please check that all of the nodes in the Curie cluster metadata "
+          "are part of the AHV cluster. For example, if the cluster "
+          "configuration has four nodes, please check that all four nodes "
+          "are present in the AHV cluster."
+        )
+      else:
+        node_uuid_metadata_id_map[curr_node_uuid] = node_id
     return node_uuid_metadata_id_map
 
   def nodes(self):
     nodes = []
     for index, node_metadata in enumerate(self._metadata.cluster_nodes):
-      uuid = self.identifier_to_node_uuid(self._prism_client, node_metadata.id)
-      nodes.append(AcropolisNode(self, uuid, index))
+      nodes.append(AcropolisNode(self, node_metadata.id, index))
     return nodes
 
   def power_off_nodes_soft(self, nodes, timeout_secs=None, async=False):

@@ -220,7 +220,7 @@ class TestScenario(unittest.TestCase):
 
     self.assertEqual(scenario.id, unfrozen_caveman_scenario.id)
     self.assertEqual(None, unfrozen_caveman_scenario.cluster)
-    self.assertEqual(5, len(unfrozen_caveman_scenario.results_map))
+    self.assertEqual(6, len(unfrozen_caveman_scenario.results_map))
 
   def test_four_corners_save_state_load_state_experimental_metrics(self):
     four_corners_directory = os.path.join(
@@ -236,7 +236,7 @@ class TestScenario(unittest.TestCase):
 
     self.assertEqual(scenario.id, unfrozen_caveman_scenario.id)
     self.assertEqual(None, unfrozen_caveman_scenario.cluster)
-    self.assertEqual(6, len(unfrozen_caveman_scenario.results_map))
+    self.assertEqual(7, len(unfrozen_caveman_scenario.results_map))
     for result in unfrozen_caveman_scenario.results_map.itervalues():
       if isinstance(result, ClusterResult):
         self.assertIsInstance(result.metric, CurieMetric)

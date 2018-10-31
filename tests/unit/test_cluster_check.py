@@ -8,7 +8,8 @@ import mock
 from curie.acropolis_cluster import AcropolisCluster
 from curie.cluster_check import ClusterCheck
 from curie.scenario import Status, Phase
-from curie.steps.check import PrismConnectivity, VCenterConnectivity
+from curie.steps.check import PrismConnectivity, PrismHostInSameCluster
+from curie.steps.check import VCenterConnectivity
 from curie.testing.util import mock_cluster
 from curie.vsphere_cluster import VsphereCluster
 
@@ -24,21 +25,21 @@ class TestClusterCheck(unittest.TestCase):
 
   def test_init_AcropolisCluster(self):
     check = ClusterCheck(cluster_obj=mock_cluster(spec=AcropolisCluster))
+    step_classes = [step.__class__ for step in check.steps[Phase.RUN]]
     self.assertEqual(check.status(), Status.NOT_STARTED)
     self.assertEqual(check.duration_secs(), None)
-    self.assertIn(PrismConnectivity,
-                  [step.__class__ for step in check.steps[Phase.RUN]])
-    self.assertNotIn(VCenterConnectivity,
-                     [step.__class__ for step in check.steps[Phase.RUN]])
+    self.assertIn(PrismConnectivity, step_classes)
+    self.assertIn(PrismHostInSameCluster, step_classes)
+    self.assertNotIn(VCenterConnectivity, step_classes)
 
   def test_init_VsphereCluster(self):
     check = ClusterCheck(cluster_obj=mock_cluster(spec=VsphereCluster))
+    step_classes = [step.__class__ for step in check.steps[Phase.RUN]]
     self.assertEqual(check.status(), Status.NOT_STARTED)
     self.assertEqual(check.duration_secs(), None)
-    self.assertIn(VCenterConnectivity,
-                  [step.__class__ for step in check.steps[Phase.RUN]])
-    self.assertNotIn(PrismConnectivity,
-                     [step.__class__ for step in check.steps[Phase.RUN]])
+    self.assertIn(VCenterConnectivity, step_classes)
+    self.assertNotIn(PrismHostInSameCluster, step_classes)
+    self.assertNotIn(PrismConnectivity, step_classes)
 
   def test_start_join(self):
     check = ClusterCheck(cluster_obj=mock_cluster())

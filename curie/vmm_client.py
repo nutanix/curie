@@ -72,6 +72,13 @@ class VmmClient(object):
     return self.ps_client.execute(
       "Get-VmmHypervCluster", json_params=json.dumps(params, sort_keys=True))
 
+  def get_vmm_version(self):
+    """
+    Return ScVMM version.
+    """
+    return self.ps_client.execute(
+      "Get-VmmVersion", json_params=json.dumps(None, sort_keys=True))
+
   def get_library_shares(self):
     """Returns all library shares on VMM server. """
     return self.ps_client.execute("Get-VmmLibraryShares")

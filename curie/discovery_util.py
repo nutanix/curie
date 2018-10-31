@@ -567,6 +567,7 @@ class DiscoveryUtil(object):
               log.debug("Found CVM: %s", vm)
               cvm_addresses.extend(vm["ips"])
       else:
+        node_ids = [node.id for node in cluster_pb.cluster_nodes]
         # NB: We currently have an asymmetrical input for Prism credentials
         # depending on whether they're considered as management software or
         # clustering software. In the latter case, which is when 'nutanix_info'
@@ -580,9 +581,17 @@ class DiscoveryUtil(object):
                                                mgmt_info.vcenter_cluster_name)
           for vim_cvm in (vm for vm in vcenter.lookup_vms(vim_cluster)
                           if vcenter.vim_vm_is_nutanix_cvm(vm)):
-            cvm_address = vcenter.get_vim_vm_ip_address(vim_cvm)
-            if cvm_address:
-              cvm_addresses.append(cvm_address)
+            vim_host = get_optional_vim_attr(vim_cvm.runtime, "host")
+            if vim_host:
+              if vim_host.name in node_ids:
+                cvm_address = vcenter.get_vim_vm_ip_address(vim_cvm)
+                if cvm_address:
+                  log.debug("Found CVM '%s' with address '%s'" %
+                            (vim_cvm.name, cvm_address))
+                  cvm_addresses.append(cvm_address)
+              else:
+                log.debug("Skipping CVM '%s'; Host '%s' is not in the "
+                          "metadata" % (vim_cvm.name, vim_host.name))
       for cvm_address in cvm_addresses:
         client = NutanixRestApiClient(cvm_address, prism_user, prism_password)
         try:
@@ -784,8 +793,7 @@ class DiscoveryUtil(object):
     with vmm_client:
       cluster = vmm_client.get_clusters(
         cluster_name=mgmt_info.vmm_cluster_name)[0]
-      # TODO (cwilson) We need to get the SCVMM version - XRAY-1310
-      mgmt_info.vmm_version = "Unknown"
+      mgmt_info.vmm_version = vmm_client.get_vmm_version()
       nodes = vmm_client.get_nodes(mgmt_info.vmm_cluster_name)
       hyp_info.version.extend(node["version"] for node in nodes)
     if cluster_pb.cluster_software_info.HasField("nutanix_info"):

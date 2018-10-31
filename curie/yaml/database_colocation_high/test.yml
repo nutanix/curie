@@ -93,8 +93,8 @@ results:
       result_expected_value: "{{ oltp_iops }}"
       result_value_bands:
         - name: 95%
-          upper: "{{ oltp_iops + 1.96 * oltp_iops ** (1/2) }}"
-          lower: "{{ oltp_iops - 1.96 * oltp_iops ** (1/2) }}"
+          upper: "{{ oltp_iops + 1.96 * oltp_iops ** (1/2.0) }}"
+          lower: "{{ oltp_iops - 1.96 * oltp_iops ** (1/2.0) }}"
       result_hint: "Consistently achieve {{ oltp_iops }} IOPS."
       report_group: performance
       report_metrics:
@@ -110,14 +110,23 @@ results:
       vm_group: DSS
       result_type: bandwidth
       result_hint: "Consistently achieve {{ dss_tput / 1024 / 1024}} MBps"
+      result_expected_value: "{{ dss_tput }}"
+      result_value_bands:
+        - name: 95%
+          upper: 1331101422
+          lower: 1198588178
+          # See DSS_prediction_band_calc.txt
       report_group: performance
       report_metrics:
         - Variability
   - Cluster CPU Usage:
       metric: CpuUsage.Avg.Megahertz
       aggregate: sum
-  - Cluster Network Bandwidth:
+  - Cluster Network Received:
       metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+  - Cluster Network Transmitted:
+      metric: NetTransmitted.Avg.KilobytesPerSecond
       aggregate: sum
 
 setup:

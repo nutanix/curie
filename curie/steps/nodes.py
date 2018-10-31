@@ -8,6 +8,7 @@ from multiprocessing.pool import ThreadPool
 
 import _util
 from curie.exception import CurieTestException, ScenarioStoppedError
+from curie.node import get_power_management_util
 from curie.steps._base_step import BaseStep
 from curie.util import CurieUtil
 
@@ -34,9 +35,6 @@ class _PowerOp(BaseStep):
     super(_PowerOp, self).__init__(scenario, annotate=annotate)
     self.nodes_slice_str = str(nodes)
     self.wait_secs = wait_secs
-
-    # Exposed via @property 'nodes'.
-    self._nodes = None
 
   def verify(self):
     # NB: This must reference metadata and *not* the actual 'CurieNode'
@@ -81,18 +79,17 @@ class _PowerOp(BaseStep):
         "  'n/2:'  # The last half of the nodes.\n"
         "  'all'  # All nodes." % self.name)
 
-  @property
   def nodes(self):
-    if self._nodes is None:
-      self.nodes = _util.get_nodes(self.scenario, self.nodes_slice_str)
-    return self._nodes
+    return _util.get_nodes(self.scenario, self.nodes_slice_str)
 
-  @nodes.setter
-  def nodes(self, val):
-    if self._nodes is not None:
-      raise AttributeError("'%s.nodes' is immutable once set" %
-                           type(self).__name__)
-    self._nodes = val
+  def node_metadatas(self):
+    return CurieUtil.slice_with_string(
+      self.scenario.cluster.metadata().cluster_nodes, self.nodes_slice_str).items()
+
+  def node_power_management_utils(self):
+    return [
+      (index, get_power_management_util(node_metadata.node_out_of_band_management_info))
+      for index, node_metadata in self.node_metadatas()]
 
 
 class PowerOff(_PowerOp):
@@ -117,8 +114,6 @@ class PowerOff(_PowerOp):
       self.description = "Powering off node %d" % int(nodes)
     except Exception:
       self.description = "Powering off node(s) %s" % nodes
-    # TODO (jklein/ryan.hardin): Can't access this in '__init__'.
-    # ", ".join(map(str, self.nodes.keys()))))
 
   def _run(self):
     """Immediately power off nodes, and optionally wait to confirm power off.
@@ -128,16 +123,19 @@ class PowerOff(_PowerOp):
         If a node index is out of bounds.
         If the node is not powered off within wait_secs seconds.
     """
-    pool = ThreadPool(len(self.nodes))
-    pool.map(self.__power_off, self.nodes)
+    power_management_utils = self.node_power_management_utils()
+    pool = ThreadPool(len(power_management_utils))
+    pool.map(self.__power_off, power_management_utils)
     if self.wait_secs > 0:
       wait_step = WaitForPowerOff(self.scenario, self.nodes_slice_str,
                                   self.wait_secs, annotate=self._annotate)
       wait_step()
 
-  def __power_off(self, node):
-    self.create_annotation("Node %d: Powering off" % node.node_index())
-    node.power_off(sync_management_state=False)
+  def __power_off(self, index_power_management_util):
+    index, power_management_util = index_power_management_util
+    self.create_annotation("Node %d: Sending power-off command to '%s'" %
+                           (index, power_management_util.host))
+    power_management_util.power_off()
 
 
 class WaitForPowerOff(_PowerOp):
@@ -160,9 +158,6 @@ class WaitForPowerOff(_PowerOp):
     except Exception:
       self.description = "Waiting for node(s) %s to power off" % nodes
 
-    # TODO (jklein/ryan.hardin): Can't access this in '__init__'.
-    # ", ".join(map(str, self.nodes.keys()))))
-
   def _run(self):
     """Wait for nodes to be powered off.
 
@@ -172,7 +167,7 @@ class WaitForPowerOff(_PowerOp):
         If the node is not powered off within wait_secs seconds.
     """
     start_secs = time.time()
-    for node in self.nodes:
+    for node in self.nodes():
       def is_done():
         software_power_on = node.is_powered_on_soft()
         hardware_power_on = node.is_powered_on()
@@ -230,9 +225,6 @@ class PowerOn(_PowerOp):
     except Exception:
       self.description = "Powering on node(s) %s" % nodes
 
-    # TODO (jklein/ryan.hardin): Can't access this in '__init__'.
-    # ", ".join(map(str, self.nodes.keys()))))
-
   def _run(self):
     """Immediately power on nodes, and optionally wait to confirm readiness.
 
@@ -241,16 +233,19 @@ class PowerOn(_PowerOp):
         If a node index is out of bounds.
         If the node is not ready within wait_secs seconds.
     """
-    pool = ThreadPool(len(self.nodes))
-    pool.map(self.__power_on, self.nodes)
+    power_management_utils = self.node_power_management_utils()
+    pool = ThreadPool(len(power_management_utils))
+    pool.map(self.__power_on, power_management_utils)
     if self.wait_secs > 0:
       wait_step = WaitForPowerOn(self.scenario, self.nodes_slice_str,
                                  self.wait_secs, annotate=self._annotate)
       wait_step()
 
-  def __power_on(self, node):
-    self.create_annotation("Node %d: Powering on" % node.node_index())
-    node.power_on()
+  def __power_on(self, index_power_management_util):
+    index, power_management_util = index_power_management_util
+    self.create_annotation("Node %d: Sending power-on command to '%s'" %
+                           (index, power_management_util.host))
+    power_management_util.power_on()
 
 
 class WaitForPowerOn(_PowerOp):
@@ -273,9 +268,6 @@ class WaitForPowerOn(_PowerOp):
     except Exception:
       self.description = "Waiting for node(s) %s to power on" % nodes
 
-    # TODO (jklein/ryan.hardin): Can't access this in '__init__'.
-    # ", ".join(map(str, self.nodes.keys()))))
-
   def _run(self):
     """Wait for nodes to be ready.
 
@@ -284,8 +276,25 @@ class WaitForPowerOn(_PowerOp):
         If a node index is out of bounds.
         If the node is not ready within wait_secs seconds.
     """
+    def management_api_responding():
+      try:
+        nodes = self.scenario.cluster.nodes()
+        nodes_metadata = self.scenario.cluster.metadata().cluster_nodes
+        if len(nodes) == len(nodes_metadata):
+          return True
+        else:
+          log.warning("Nodes list is unexpected length %d (expected %d)" %
+                      (len(nodes), len(nodes_metadata)))
+          log.debug(nodes)
+      except Exception:
+        log.warning("Unable to get nodes list", exc_info=True)
+      return False
+
     start_secs = time.time()
-    for node in self.nodes:
+    self.scenario.wait_for(management_api_responding,
+                           "the management API to become responsive",
+                           self.wait_secs, poll_secs=5)
+    for node in self.nodes():
       node.sync_power_state()
       elapsed_secs = time.time() - start_secs
       remaining_secs = self.wait_secs - elapsed_secs
@@ -335,9 +344,6 @@ class Shutdown(_PowerOp):
     except Exception:
       self.description = "Shutting down node(s) %s" % nodes
 
-    # TODO (jklein/ryan.hardin): Can't access this in '__init__'.
-    # ", ".join(map(str, self.nodes.keys()))))
-
   def _run(self):
     """Shuts nodes via management software.
 
@@ -345,8 +351,8 @@ class Shutdown(_PowerOp):
       CurieTestException:
         If timeout is reached without shutting down node.
     """
-    pool = ThreadPool(len(self.nodes))
-    pool.map(self.__shutdown, self.nodes)
+    pool = ThreadPool(len(self.nodes()))
+    pool.map(self.__shutdown, self.nodes())
     if self.wait_secs > 0:
       wait_step = WaitForPowerOff(self.scenario, self.nodes_slice_str,
                                   self.wait_secs, annotate=self._annotate)

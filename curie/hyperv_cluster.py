@@ -14,9 +14,9 @@ from curie.exception import CurieException, CurieTestException
 from curie.goldimage_manager import GoldImageManager
 from curie.hyperv_node import HyperVNode
 from curie.hyperv_unix_vm import HyperVUnixVM
-from curie.nutanix_rest_api_client import NutanixRestApiClient
 from curie.log import CHECK
-from curie.name_util import CURIE_GOLDIMAGE_VM_NAME_PREFIX, NameUtil
+from curie.name_util import NameUtil
+from curie.nutanix_rest_api_client import NutanixRestApiClient
 from curie.task import HypervTaskDescriptor, HypervTaskPoller
 from curie.vm import VmParams
 from curie.vmm_client import VmmClient
@@ -59,6 +59,13 @@ class HyperVCluster(Cluster):
     # VMM Client
     self.vmm_client = None
 
+    # List of VMs used to store self.vms() result to detect if a VM was moved
+    # to some other node.
+    self.old_vms_list = []
+
+    # A list of VMs that need to be refreshed in self.vms()
+    self.vms_refresh_list = []
+
   def get_power_state_for_vms(self, vms):
     """See 'Cluster.get_power_state_for_vms' for documentation."""
     vm_ids = set([vm.vm_id() for vm in vms])
@@ -86,13 +93,14 @@ class HyperVCluster(Cluster):
         goldimage_name, GoldImageManager.FORMAT_VHDX_ZIP,
         GoldImageManager.ARCH_X86_64)
 
-      goldimage_name = GoldImageManager.get_goldimage_filename(
+      goldimage_disk_name = GoldImageManager.get_goldimage_filename(
         goldimage_name, GoldImageManager.FORMAT_VHDX,
         GoldImageManager.ARCH_X86_64)
 
       goldimage_url = self.__get_http_goldimages_address(goldimage_zip_name)
 
-      target_dir = self.cluster_name + "\\" + vm_name
+      target_dir = NameUtil.library_server_goldimage_path(self.cluster_name,
+                                                          goldimage_name)
       task_desc = HypervTaskDescriptor(
         pre_task_msg="Uploading image '%s'",
         post_task_msg="Uploaded image '%s'",
@@ -106,8 +114,8 @@ class HyperVCluster(Cluster):
 
       # Create GoldImage VM Template.
       goldimage_disk_path = "\\".join([self.vmm_library_server_share_path,
-                                       goldimage_name.split(".")[0],
-                                       goldimage_name])
+                                       target_dir, goldimage_disk_name])
+
       task_desc = HypervTaskDescriptor(
         pre_task_msg="Updating SCVMM library path '%s'" % goldimage_disk_path,
         post_task_msg="Updated SCVMM library path '%s'" % goldimage_disk_path,
@@ -155,7 +163,8 @@ class HyperVCluster(Cluster):
     goldimage_url = self.__get_http_goldimages_address(goldimage_zip_name)
 
     with self._get_vmm_client() as vmm_client:
-      target_dir = self.cluster_name + "\\" + vm_name
+      target_dir = NameUtil.library_server_goldimage_path(self.cluster_name,
+                                                          vm_name)
       disk_name = vm_name + ".vhdx"
       task_desc = HypervTaskDescriptor(
         pre_task_msg="Uploading image '%s'" % goldimage_url,
@@ -331,7 +340,8 @@ class HyperVCluster(Cluster):
                         vm_names_by_id[task_list_both_chunk["id"]],
           create_task_func=vmm_client.vms_set_possible_owners_for_vms,
           task_func_kwargs={"cluster_name": self.cluster_name,
-                            "task_req_list": [task_list_both_chunk]})
+                            "task_req_list": [task_list_both_chunk]},
+          vmm_restart_count=2)
         task_desc_list.append(task_desc)
       HypervTaskPoller.execute_parallel_tasks(
         vmm=vmm_client, task_descriptors=task_desc_list,
@@ -369,7 +379,8 @@ class HyperVCluster(Cluster):
                         vm_names_by_id[task_list_new_chunk["id"]],
           create_task_func=vmm_client.vms_set_possible_owners_for_vms,
           task_func_kwargs={"cluster_name": self.cluster_name,
-                            "task_req_list": [task_list_new_chunk]})
+                            "task_req_list": [task_list_new_chunk]},
+          vmm_restart_count=2)
         task_desc_list.append(task_desc)
       HypervTaskPoller.execute_parallel_tasks(
         vmm=vmm_client, task_descriptors=task_desc_list,
@@ -598,12 +609,33 @@ class HyperVCluster(Cluster):
           timeout_secs=len(vms) * 900, batch_var="task_req_list")
 
   def nodes(self, node_ids=None):
+    node_fqdn_map = {}
     with self._get_vmm_client() as vmm_client:
-      response = vmm_client.get_nodes(
-        self.cluster_name, node_ids)
-      nodes = [self.__json_to_curie_node(node, index)
-               for index, node in enumerate(response)]
-      return nodes
+      response = vmm_client.get_nodes(self.cluster_name, node_ids)
+      for index, node_data in enumerate(response):
+        node_fqdn_map[node_data["fqdn"]] = node_data
+    nodes = []
+    for index, cluster_node in enumerate(self._metadata.cluster_nodes):
+      if cluster_node.id not in node_fqdn_map:
+        raise CurieTestException(
+          cause=
+          "Node with ID '%s' is in the Curie cluster metadata, but not "
+          "found in Hyper-V cluster '%s'." %
+          (cluster_node.id, self.cluster_name),
+          impact=
+          "The cluster configuration is invalid.",
+          corrective_action=
+          "Please check that all of the nodes in the Curie cluster metadata "
+          "are part of the Hyper-V cluster. For example, if the cluster "
+          "configuration has four nodes, please check that all four nodes are "
+          "present in the Hyper-V cluster. If the nodes are managed in "
+          "Hyper-V by FQDN, please check that the nodes were also added by "
+          "their FQDN to the Curie cluster metadata."
+        )
+      else:
+        nodes.append(self.__json_to_curie_node(node_fqdn_map[cluster_node.id],
+                     index))
+    return nodes
 
   def power_off_nodes_soft(self, nodes, timeout_secs=None, async=False):
     """See 'Cluster.power_off_nodes_soft' for definition."""
@@ -789,39 +821,22 @@ class HyperVCluster(Cluster):
     return self.get_power_state_for_nodes(nodes)
 
   def update_metadata(self, include_reporting_fields):
-    vmm_node_fqdns = [node.get_fqdn() for node in self.nodes()]
-    metadata_node_ids = [node.id for node in self._metadata.cluster_nodes]
-    for vmm_node_fqdn in vmm_node_fqdns:
-      if vmm_node_fqdn not in metadata_node_ids:
-        raise CurieTestException(
-          cause=
-          "Node with ID '%s' found in the SCVMM cluster '%s', but not in "
-          "the Curie cluster metadata." % (vmm_node_fqdn, self.name()),
-          impact=
-          "The configured cluster can not be used because the nodes chosen "
-          "for this cluster do not exactly match the nodes in SCVMM.",
-          corrective_action=
-          "Please check that all of the nodes in the SCVMM cluster are part "
-          "of the cluster configuration. For example, if the SCVMM cluster "
-          "has four nodes, please check that all four nodes are being used in "
-          "the Curie cluster configuration. If the nodes are managed in SCVMM "
-          "by FQDN, please check that the nodes were also added by their FQDN "
-          "to the Curie cluster metadata."
-        )
     # There's nothing to update for now.
+    pass
 
   def cleanup(self, test_ids=()):
     """Remove all Curie templates and state from this cluster.
     """
     log.info("Cleaning up state on cluster %s", self.cluster_name)
     with self._get_vmm_client() as vmm_client:
+      target_dir = NameUtil.library_server_target_path(self.cluster_name)
       task_desc = HypervTaskDescriptor(
         pre_task_msg="Cleaning VMM server",
         post_task_msg="Cleaned VMM server",
         create_task_func=vmm_client.clean_vmm,
 
         task_func_kwargs={"cluster_name": self.cluster_name,
-                          "target_dir": self.cluster_name,
+                          "target_dir": target_dir,
                           "vm_datastore_path": self.share_path,
                           "vm_name_prefix": NameUtil.get_vm_name_prefix()})
       HypervTaskPoller.execute_parallel_tasks(
@@ -832,7 +847,7 @@ class HyperVCluster(Cluster):
         pre_task_msg="Cleaning library server share",
         post_task_msg="Cleaned library server share",
         create_task_func=vmm_client.clean_library_server,
-        task_func_kwargs={"target_dir": self.cluster_name,
+        task_func_kwargs={"target_dir": target_dir,
                           "vm_name_prefix": NameUtil.get_vm_name_prefix()})
       HypervTaskPoller.execute_parallel_tasks(
         vmm=vmm_client, task_descriptors=[task_desc], max_parallel=1,
@@ -866,16 +881,85 @@ class HyperVCluster(Cluster):
   def vms(self):
     with self._get_vmm_client() as vmm_client:
       vm_list_ret = vmm_client.get_vms(self.cluster_name)
-      unique_vm_names = []
-      filtered_vm_list_ret = []
-      for vm in vm_list_ret:
-        if vm["name"] not in unique_vm_names:
-          filtered_vm_list_ret.append(vm)
-          unique_vm_names.append(vm["name"])
-        else:
-          log.debug("Duplicate VM '%s' found.", vm)
-      vm_list = map(self.__json_to_curie_vm, filtered_vm_list_ret)
+      vm_list = self.__filter_duplicate_vms(vm_list_ret)
+
+      # Compare old vs new. Mark VMs that were moved from node to \
+      # node and were running to be refreshed since SCVMM does not \
+      # update the VM IP automatically.
+      if self.old_vms_list:
+        for vm in vm_list:
+          old_vms_tmp = [old_vm for old_vm in self.old_vms_list \
+              if vm.vm_id() == old_vm.vm_id()]
+          if len(old_vms_tmp) == 1:
+            old_vm = old_vms_tmp[0] # Should be only one VM
+            # Check if VM was moved from node to node.
+            if vm.node_id() != old_vm.node_id() and \
+              vm.is_powered_on() and old_vm.is_powered_on():
+              # Check if the same VM is already in the list and update
+              # the list
+              vms_refresh_list_remove = [vm_refresh for vm_refresh in
+                self.vms_refresh_list if vm.vm_id() == vm_refresh.vm_id()]
+              for vm_refresh in vms_refresh_list_remove:
+                self.vms_refresh_list.remove(vm_refresh)
+              self.vms_refresh_list.append(vm)
+
+      # Check if there are any VMs that need to be refreshed.
+      if len(self.vms_refresh_list) > 0:
+        vm_names_by_id = {}
+        task_req_list = []
+        for vm in self.vms_refresh_list:
+          task_req_list.append({"vm_id": vm.vm_id()})
+          vm_names_by_id[vm.vm_id()] = vm.vm_name()
+
+        # Refresh VMs to check for new IP
+        task_desc_list = []
+        for index, task_req_list_chunk in enumerate(task_req_list):
+          task_desc = HypervTaskDescriptor(
+            pre_task_msg="Refreshing on VM '%s' (%d/%d)" %
+                         (vm_names_by_id[task_req_list_chunk["vm_id"]],
+                          index + 1, len(self.vms_refresh_list)),
+            post_task_msg="Refreshed on VM '%s'" %
+                          vm_names_by_id[task_req_list_chunk["vm_id"]],
+            create_task_func=vmm_client.refresh_vms,
+            task_func_kwargs={"cluster_name": self.cluster_name,
+                              "vm_input_list": [task_req_list_chunk]})
+          task_desc_list.append(task_desc)
+        HypervTaskPoller.execute_parallel_tasks(
+          vmm=vmm_client, task_descriptors=task_desc_list,
+          max_parallel=100, poll_secs=5,
+          timeout_secs=len(self.vms_refresh_list) * 900,
+          raise_on_failure=False, batch_var="vm_input_list")
+        vm_list_ret = vmm_client.get_vms(self.cluster_name)
+        vm_list = self.__filter_duplicate_vms(vm_list_ret)
+
+        # Remove VMs from 'self.vms_refresh_list' that do not need to be \
+        # refreshed any more.
+        for vm in vm_list:
+          refresh_vms = [refresh_vm for refresh_vm in self.vms_refresh_list
+                                   if vm.vm_id() == refresh_vm.vm_id()]
+          if len(refresh_vms) > 0:
+            # If VM is accessible after it was moved we do not need
+            # to refresh it any more
+            if vm.vm_ip() and vm.is_accessible():
+              self.vms_refresh_list.remove(refresh_vms[0])
+
+      self.old_vms_list = vm_list
       return vm_list
+
+  def __filter_duplicate_vms(self, json_vms):
+    "Returns a list of 'HyperVUnixVM' objects."
+    # The 'json_vms' input parameter can contain duplicate VM objects due to
+    # SCVMM internal issues. These duplicates are filtered out in order to
+    # have a single VM object for each VM.
+    unique_vm_names = []
+    filtered_vm_list_ret = []
+    for vm in json_vms:
+      if vm["name"] not in unique_vm_names:
+        filtered_vm_list_ret.append(vm)
+        unique_vm_names.append(vm["name"])
+      else:
+        log.debug("Duplicate VM '%s' found.", vm)
+    return map(self.__json_to_curie_vm, filtered_vm_list_ret)
 
   def __json_to_curie_vm(self, json_vm):
     "Returns an object of the appropriate subclass of Vm for 'vim_vm'."

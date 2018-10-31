@@ -17,6 +17,7 @@ CURIE_TEST_VM_NAME_PREFIX = "%s_test" % CURIE_VM_NAME_PREFIX
 # Entity name prefix to use for all entities created by curie.
 CURIE_ENTITY_NAME_PREFIX = "__curie"
 
+
 class NameUtil(object):
   @staticmethod
   def goldimage_vmdisk_name(goldimage_name, disk_name):
@@ -39,11 +40,19 @@ class NameUtil(object):
                           goldimage_name))[:61]
 
   @staticmethod
-  def library_server_path(cluster_name, goldimage_name):
+  def library_server_goldimage_path(cluster_name, goldimage_name):
     """
-    Returns a unique library server share path.
+    Returns a unique library server share path of the goldimage location.
     """
-    return "%s\%s" % (cluster_name, goldimage_name)
+    return "%s_%s\%s" % (CURIE_VM_NAME_PREFIX,
+                         cluster_name, goldimage_name)
+
+  @staticmethod
+  def library_server_target_path(cluster_name):
+    """
+    Returns a unique library server share path for all curie files.
+    """
+    return "%s_%s" % (CURIE_VM_NAME_PREFIX, cluster_name)
 
   @staticmethod
   def test_vm_name(test, test_local_vm_name):

@@ -5,13 +5,16 @@ import time
 import unittest
 
 import mock
+import requests
 
 from curie.curie_server_state_pb2 import CurieSettings
 from curie.exception import CurieTestException
 from curie.hyperv_cluster import HyperVCluster
 from curie.hyperv_node import HyperVNode
 from curie.hyperv_unix_vm import HyperVUnixVM
+from curie.name_util import NameUtil, CURIE_VM_NAME_PREFIX
 from curie.node import Node
+from curie.oob_management_util import OobInterfaceType
 from curie.vm import Vm
 from curie.vmm_client import VmmClientException
 
@@ -21,6 +24,7 @@ class TestHyperVCluster(unittest.TestCase):
     self.cluster_metadata = CurieSettings.Cluster()
     self.cluster_metadata.cluster_name = "Fake Cluster"
     self.cluster_metadata.cluster_hypervisor_info.hyperv_info.SetInParent()
+    self.cluster_metadata.cluster_software_info.generic_info.SetInParent()
     cluster_nodes_count = 2
     nodes = [mock.Mock(spec=Node) for _ in xrange(cluster_nodes_count)]
     for id, node in enumerate(nodes):
@@ -28,6 +32,7 @@ class TestHyperVCluster(unittest.TestCase):
       node.node_index.return_value = id
       curr_node = self.cluster_metadata.cluster_nodes.add()
       curr_node.id = "fake_node_%d" % id
+      curr_node.node_out_of_band_management_info.interface_type = OobInterfaceType.kNone
     vmm_info = self.cluster_metadata.cluster_management_server_info.vmm_info
     vmm_info.vmm_server = "fake_vmm_server_address"
     vmm_info.vmm_user = "fake_vmm_username"
@@ -40,6 +45,95 @@ class TestHyperVCluster(unittest.TestCase):
     vmm_info.vmm_share_name = "fake_share_name"
     vmm_info.vmm_share_path = "\\\\fake\\path\\to\\fake_share_name"
     vmm_info.vmm_network_name = "fake_network"
+
+  def test_update_metadata(self):
+    cluster = HyperVCluster(self.cluster_metadata)
+    cluster.update_metadata(False)
+
+  def test_update_metadata_if_cluster_contains_extra_nodes(self):
+    curr_node = self.cluster_metadata.cluster_nodes.add()
+    curr_node.id = "fake_node_extra"
+    cluster = HyperVCluster(self.cluster_metadata)
+    cluster.update_metadata(False)
+
+  def test_update_metadata_if_cluster_contains_fewer_nodes(self):
+    del self.cluster_metadata.cluster_nodes[-1]  # Remove the last item.
+    cluster = HyperVCluster(self.cluster_metadata)
+    cluster.update_metadata(False)
+
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  def test_nodes_if_cluster_is_correct_size(self, m_VmmClient):
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_nodes.__name__ = "get_nodes"
+    m_vmm_client.get_nodes.return_value = [
+      {
+        "id": "fake_node_%d" % index,
+        "name": "Fake Node %d" % index,
+        "fqdn": "fake_node_%d" % index,
+        "ips": ["169.254.1.0"],
+        "state": "Running",
+        "overall_state": "ok",
+        "version": "fake_version_string_1234"
+      } for index in xrange(2)]
+    cluster = HyperVCluster(self.cluster_metadata)
+
+    self.assertEqual(2, len(cluster.nodes()))
+
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  def test_nodes_if_cluster_contains_extra_nodes(self, m_VmmClient):
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_nodes.__name__ = "get_nodes"
+    m_vmm_client.get_nodes.return_value = [
+      {
+        "id": "fake_node_%d" % index,
+        "name": "Fake Node %d" % index,
+        "fqdn": "fake_node_%d" % index,
+        "ips": ["169.254.1.0"],
+        "state": "Running",
+        "overall_state": "ok",
+        "version": "fake_version_string_1234"
+      } for index in xrange(2)]
+
+    curr_node = self.cluster_metadata.cluster_nodes.add()
+    curr_node.id = "fake_node_extra"
+    cluster = HyperVCluster(self.cluster_metadata)
+
+    with self.assertRaises(CurieTestException) as ar:
+      cluster.nodes()
+
+    self.assertEqual(
+      "Cause: Node with ID 'fake_node_extra' is in the Curie cluster "
+      "metadata, but not found in Hyper-V cluster 'fake_cluster'.\n"
+      "\n"
+      "Impact: The cluster configuration is invalid.\n"
+      "\n"
+      "Corrective Action: Please check that all of the nodes in the Curie "
+      "cluster metadata are part of the Hyper-V cluster. For example, if the "
+      "cluster configuration has four nodes, please check that all four nodes "
+      "are present in the Hyper-V cluster. If the nodes are managed in "
+      "Hyper-V by FQDN, please check that the nodes were also added by their "
+      "FQDN to the Curie cluster metadata.\n"
+      "\n"
+      "Traceback: None", str(ar.exception))
+
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  def test_nodes_if_cluster_contains_fewer_nodes(self, m_VmmClient):
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_nodes.__name__ = "get_nodes"
+    m_vmm_client.get_nodes.return_value = [
+      {
+        "id": "fake_node_%d" % index,
+        "name": "Fake Node %d" % index,
+        "fqdn": "fake_node_%d" % index,
+        "ips": ["169.254.1.0"],
+        "state": "Running",
+        "overall_state": "ok",
+        "version": "fake_version_string_1234"
+      } for index in xrange(3)]
+
+    cluster = HyperVCluster(self.cluster_metadata)
+
+    self.assertEqual(2, len(cluster.nodes()))
 
   @mock.patch("curie.hyperv_cluster.HyperVUnixVM", spec=True)
   @mock.patch("curie.hyperv_cluster.VmmClient")
@@ -94,6 +188,135 @@ class TestHyperVCluster(unittest.TestCase):
         "node_id": "fake_node_0",
       }),
     ])
+
+  def __mocked_request_head(*args, **kwargs):
+    class MockResponse:
+      status_code = 200
+      elapsed = 1
+      def raise_for_status(self):
+        pass
+
+    if args[0] == 'http://169.254.1.2:5001':
+      raise requests.exceptions.RequestException("Not accessible!")
+
+    return MockResponse()
+
+  @mock.patch('requests.head', side_effect=__mocked_request_head)
+  @mock.patch("curie.hyperv_cluster.VmmClient")
+  def test_get_vms_after_vm_migration(
+      self, m_VmmClient, m_RequestsHead):
+    m_vmm_client = m_VmmClient.return_value.__enter__.return_value
+    m_vmm_client.get_vms.__name__ = "get_vms"
+    m_vmm_client.vm_get_job_status.side_effect = [
+      # refresh_vms (2nd vms() call)
+      [{"task_id": "0", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "0", "task_type": "vmm", "state": "completed"}],
+      # refresh_vms (3rd vms() call)
+      [{"task_id": "1", "task_type": "vmm", "state": "running"}],
+      [{"task_id": "1", "task_type": "vmm", "state": "completed"}],
+    ]
+    m_vmm_client.refresh_vms.__name__ = "refresh_vms"
+    m_vmm_client.refresh_vms.side_effect = [
+      # refresh_vms (2nd vms() call)
+      [{"task_id": "0", "task_type": "vmm"}],
+      # refresh_vms (3rd vms() call)
+      [{"task_id": "1", "task_type": "vmm"}],
+    ]
+
+    m_vmm_client.get_vms.side_effect = [
+      # 1st vms() call
+      [{
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_1",
+      }],
+      # 2nd vms() call
+      [{
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+      {
+        "id": "fake_vm_1",
+        "name": "Fake VM 1",
+        "status": "Running",
+        "ips": ["169.254.1.2"],
+        "node_id": "fake_node_2",
+      }],
+      [{
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+        {
+          "id": "fake_vm_1",
+          "name": "Fake VM 1",
+          "status": "Running",
+          "ips": ["169.254.1.2"],
+          "node_id": "fake_node_2",
+        }],
+      # 3rd vms() call
+      [{
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+        {
+          "id": "fake_vm_1",
+          "name": "Fake VM 1",
+          "status": "Running",
+          "ips": ["169.254.1.2"],
+          "node_id": "fake_node_2",
+        }],
+      [{
+        "id": "fake_vm_0",
+        "name": "Fake VM 0",
+        "status": "PowerOff",
+        "ips": ["169.254.1.1"],
+        "node_id": "fake_node_0",
+      },
+        {
+          "id": "fake_vm_1",
+          "name": "Fake VM 1",
+          "status": "Running",
+          "ips": ["169.254.1.3"],
+          "node_id": "fake_node_2",
+        }],
+    ]
+
+    cluster = HyperVCluster(self.cluster_metadata)
+    # First call to vms()
+    vms1 = cluster.vms()
+    # Call again to check if any VM was moved and try to detect new IP
+    vms2 = cluster.vms()
+    # Call again to check if new IP has already been assigned to the moved VM
+    vms3 = cluster.vms()
+    self.assertEqual(len(vms1), 2)
+    self.assertEqual(len(vms2), 2)
+    self.assertEqual(len(vms3), 2)
+    self.assertEqual(vms1[1].vm_ip(), "169.254.1.2")
+    self.assertEqual(vms2[1].vm_ip(), "169.254.1.2")
+    self.assertEqual(vms3[1].vm_ip(), "169.254.1.3")
+    self.assertEqual(vms1[1].node_id(), "fake_node_1")
+    self.assertEqual(vms2[1].node_id(), "fake_node_2")
+    self.assertEqual(vms3[1].node_id(), "fake_node_2")
+    self.assertEqual(m_vmm_client.get_vms.call_count, 5)
+
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
   def test_get_power_state_for_vms(self, m_VmmClient):
@@ -233,20 +456,21 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(vm.vm_name(), "Fake Imported VM")
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
-    target_dir = "fake_cluster" + "\\" + vm.vm_name()
+    cluster_name = "fake_cluster"
+    target_dir = NameUtil.library_server_goldimage_path(cluster_name, "fake_goldimage_name")
     m_vmm_client.upload_image.assert_called_once_with(
       goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
       goldimage_target_dir=target_dir,
       transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
       "fake_cluster", "Fake Imported VM", "fake_node_0",
-      "\\\\fake\\library\\share\\path\\fake_goldimage_name\\"
-      "fake_goldimage_name.vhdx",
+      "\\\\fake\\library\\share\\path\\%s_fake_cluster\\fake_goldimage_name\\"
+      "fake_goldimage_name.vhdx" % CURIE_VM_NAME_PREFIX,
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network")
     m_vmm_client.update_library.assert_called_once_with(
-      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_goldimage_name\\"
-                          "fake_goldimage_name.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\%s_fake_cluster\\fake_goldimage_name\\"
+                          "fake_goldimage_name.vhdx" % CURIE_VM_NAME_PREFIX)
     m_vmm_client.create_vm.assert_called_once_with(
       cluster_name="fake_cluster",
       vm_template_name=None,
@@ -365,7 +589,8 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(vm.vm_name(), "Fake Imported VM")
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
-    target_dir = "fake_cluster" + "\\" + vm.vm_name()
+    target_dir = NameUtil.library_server_goldimage_path("fake_cluster",
+                                                        vm.vm_name())
     m_vmm_client.upload_image.assert_called_once_with(
       goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
       goldimage_target_dir=target_dir,
@@ -373,13 +598,13 @@ class TestHyperVCluster(unittest.TestCase):
       transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
       "fake_cluster", "Fake Imported VM", "fake_node_0",
-      "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "Fake Imported VM.vhdx",
+      "\\\\fake\\library\\share\\path\\%s_fake_cluster\\Fake Imported VM\\"
+      "Fake Imported VM.vhdx" % CURIE_VM_NAME_PREFIX,
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network", 1, 1024)
     m_vmm_client.update_library.assert_called_once_with(
-      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-                          "Fake Imported VM.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\%s_fake_cluster\\Fake Imported VM\\"
+                          "Fake Imported VM.vhdx" % CURIE_VM_NAME_PREFIX)
     m_vmm_client.create_vm.assert_called_once_with(
       cluster_name="fake_cluster", vm_template_name="Fake Imported VM",
       vm_host_map=[{"vm_name": "Fake Imported VM", "node_id": "fake_node_0"}],
@@ -496,19 +721,20 @@ class TestHyperVCluster(unittest.TestCase):
 
     self.assertEqual(vm.vm_name(), "Fake Imported VM")
     self.assertEqual(vm.vm_id(), "fake_imported_vm")
-    target_dir = "fake_cluster" + "\\" + vm.vm_name()
+    target_dir = NameUtil.library_server_goldimage_path("fake_cluster",
+                                                        vm.vm_name())
     m_vmm_client.upload_image.assert_called_once_with(
       goldimage_disk_list=["http://1.2.3.4/goldimages/fake_goldimage_name.vhdx.zip"],
       goldimage_target_dir=target_dir, disk_name='Fake Imported VM.vhdx', transfer_type="bits")
     m_vmm_client.create_vm_template.assert_called_once_with(
       "fake_cluster", "Fake Imported VM", "fake_node_0",
-      "\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-      "Fake Imported VM.vhdx",
+      "\\\\fake\\library\\share\\path\\%s_fake_cluster\\Fake Imported VM\\"
+      "Fake Imported VM.vhdx" % CURIE_VM_NAME_PREFIX,
       "\\\\fake\\path\\to\\fake_share_name",
       "fake_network", 3, 1234)
     m_vmm_client.update_library.assert_called_once_with(
-      goldimage_disk_path="\\\\fake\\library\\share\\path\\fake_cluster\\Fake Imported VM\\"
-                          "Fake Imported VM.vhdx")
+      goldimage_disk_path="\\\\fake\\library\\share\\path\\%s_fake_cluster\\Fake Imported VM\\"
+                          "Fake Imported VM.vhdx" % CURIE_VM_NAME_PREFIX)
     m_vmm_client.create_vm.assert_called_once_with(
       cluster_name="fake_cluster",
       vm_template_name="Fake Imported VM",
@@ -1765,5 +1991,9 @@ class TestHyperVCluster(unittest.TestCase):
     cluster = HyperVCluster(self.cluster_metadata)
     cluster.cleanup()
 
+    target_dir = NameUtil.library_server_target_path("fake_cluster")
+    m_vmm_client.clean_vmm.assert_called_once_with(
+      cluster_name="fake_cluster", target_dir=target_dir,
+      vm_datastore_path="\\\\fake\path\\to\\fake_share_name", vm_name_prefix="__curie")
     m_vmm_client.clean_library_server.assert_called_once_with(
-      target_dir="fake_cluster", vm_name_prefix="__curie")
+      target_dir=target_dir, vm_name_prefix="__curie")

@@ -12,10 +12,12 @@ import mock
 from curie import curie_server_state_pb2
 from curie.acropolis_cluster import AcropolisCluster
 from curie.acropolis_node import AcropolisNode
+from curie.curie_error_pb2 import CurieError
 from curie.curie_metrics_pb2 import CurieMetric
-from curie.exception import CurieTestException
+from curie.exception import CurieTestException, CurieException
 from curie.nutanix_rest_api_client import NutanixMetadata
 from curie.nutanix_rest_api_client import NutanixRestApiClient
+from curie.oob_management_util import OobInterfaceType
 from curie.proto_util import proto_patch_encryption_support
 
 
@@ -50,6 +52,11 @@ class TestAcropolisCluster(unittest.TestCase):
     self.cluster_metadata = curie_settings.Cluster()
     self.cluster_metadata.cluster_name = "Fake AHV Cluster"
     self.cluster_metadata.cluster_hypervisor_info.ahv_info.SetInParent()
+    cluster_nodes_count = 4
+    for index in xrange(cluster_nodes_count):
+      curr_node = self.cluster_metadata.cluster_nodes.add()
+      curr_node.id = "fake_node_%d" % index
+      curr_node.node_out_of_band_management_info.interface_type = OobInterfaceType.kNone
     self.cluster_metadata.cluster_software_info.nutanix_info.SetInParent()
     prism_info = \
       self.cluster_metadata.cluster_management_server_info.prism_info
@@ -78,31 +85,266 @@ class TestAcropolisCluster(unittest.TestCase):
       "uuid": uuid
     }
 
-  # TODO (jklein): Fix unit test
-  @mock.patch.object(NutanixRestApiClient, "hosts_get")
-  @mock.patch.object(NutanixRestApiClient, "get_nutanix_metadata")
-  @mock.patch.object(NutanixRestApiClient, "clusters_get")
-  def test_update_metadata(self, mock_clusters_get, mock_get_nutanix_metadata,
-                           mock_hosts_get):
-    return
-    entity = {"clusterUuid": "fake-cluster-id",
-              "uuid": "uuid", "hypervisorAddress": "1.1.1.1",
-              "serviceVMExternalIP": "2.2.2.2", "name": "MockEntity"}
-    mock_hosts_get.return_value = {"entities": [entity]} #, [entity]] * 100
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_update_metadata(self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
+    m_prism_client.hosts_get.return_value = {
+      "entities": [
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_0"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_1"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_2"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_3"
+        },
+      ]
+    }
+
+    cluster = AcropolisCluster(self.cluster_metadata)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["fake_node_uuid_0",
+                            "fake_node_uuid_1",
+                            "fake_node_uuid_2",
+                            "fake_node_uuid_3",
+                            CurieException(CurieError.kInvalidParameter,
+                                           "Unable to locate host.")]
+      cluster.update_metadata(False)
+
+    for index, node_metadata in enumerate(cluster.metadata().cluster_nodes):
+      self.assertEqual("fake_node_uuid_%d" % index, node_metadata.id)
+
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_update_metadata_if_cluster_contains_extra_nodes(
+      self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
+    m_prism_client.hosts_get.return_value = {
+      "entities": [
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_0"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_1"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_2"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_3"
+        },
+      ]
+    }
+
+    extra_node = self.cluster_metadata.cluster_nodes.add()
+    extra_node.id = "fake_node_extra"
+
+    cluster = AcropolisCluster(self.cluster_metadata)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["fake_node_uuid_0",
+                            "fake_node_uuid_1",
+                            "fake_node_uuid_2",
+                            "fake_node_uuid_3",
+                            CurieException(CurieError.kInvalidParameter,
+                                           "Unable to locate host.")]
+      with self.assertRaises(CurieTestException) as ar:
+        cluster.update_metadata(False)
+
+    self.assertIn(
+      "Cause: Node with ID 'fake_node_extra' is in the Curie cluster "
+      "metadata, but not found in the AHV cluster.\n"
+      "\n"
+      "Impact: The cluster configuration is invalid.\n"
+      "\n"
+      "Corrective Action: Please check that all of the nodes in the Curie "
+      "cluster metadata are part of the AHV cluster. For example, if the "
+      "cluster configuration has four nodes, please check that all four nodes "
+      "are present in the AHV cluster.\n"
+      "\n"
+      "Traceback (most recent call last):", str(ar.exception))
+
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_update_metadata_if_cluster_contains_fewer_nodes(
+      self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
+    m_prism_client.hosts_get.return_value = {
+      "entities": [
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_0"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_1"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_2"
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_3"
+        },
+      ]
+    }
+
+    del self.cluster_metadata.cluster_nodes[-1]  # Remove the last item.
+
+    cluster = AcropolisCluster(self.cluster_metadata)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["fake_node_uuid_0",
+                            "fake_node_uuid_1",
+                            "fake_node_uuid_2",
+                            "fake_node_uuid_3",
+                            CurieException(CurieError.kInvalidParameter,
+                                           "Unable to locate host.")]
+      cluster.update_metadata(False)
+
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_update_metadata_version(self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    m_prism_client.hosts_get.return_value = {
+      "entities": [
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_0",
+          "hypervisorAddress": "1.1.1.0",
+          "serviceVMExternalIP": "2.2.2.0",
+          "name": "MockEntity",
+          "numCpuSockets": 2,
+          "numCpuCores": 32,
+          "numCpuThreads": 64,
+          "cpuFrequencyInHz": int(3e9),
+          "memoryCapacityInBytes": int(32e9),
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_1",
+          "hypervisorAddress": "1.1.1.1",
+          "serviceVMExternalIP": "2.2.2.1",
+          "name": "MockEntity",
+          "numCpuSockets": 2,
+          "numCpuCores": 32,
+          "numCpuThreads": 64,
+          "cpuFrequencyInHz": int(3e9),
+          "memoryCapacityInBytes": int(32e9),
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_2",
+          "hypervisorAddress": "1.1.1.2",
+          "serviceVMExternalIP": "2.2.2.2",
+          "name": "MockEntity",
+          "numCpuSockets": 2,
+          "numCpuCores": 32,
+          "numCpuThreads": 64,
+          "cpuFrequencyInHz": int(3e9),
+          "memoryCapacityInBytes": int(32e9),
+        },
+        {
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_3",
+          "hypervisorAddress": "1.1.1.3",
+          "serviceVMExternalIP": "2.2.2.3",
+          "name": "MockEntity",
+          "numCpuSockets": 2,
+          "numCpuCores": 32,
+          "numCpuThreads": 64,
+          "cpuFrequencyInHz": int(3e9),
+          "memoryCapacityInBytes": int(32e9),
+        },
+      ]
+    }
     nm = NutanixMetadata()
     nm.version = "el6-release-euphrates-5.0.2-stable-9d20638eb2ba1d3f84f213d5976fbcd412630c6d"
-    mock_clusters_get.side_effect = [
-      {"entities": [{"clusterUuid": "fake-cluster-id"}]},
-       {"clusterUuid": "fake-cluster-id"}]
-    mock_get_nutanix_metadata.return_value = nm
+    m_prism_client.get_nutanix_metadata.return_value = nm
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
     cluster = AcropolisCluster(self.cluster_metadata)
-    cluster.update_metadata(include_reporting_fields=True)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["fake_node_uuid_0",
+                            "fake_node_uuid_1",
+                            "fake_node_uuid_2",
+                            "fake_node_uuid_3",
+                            CurieException(CurieError.kInvalidParameter,
+                                           "Unable to locate host.")]
+      cluster.update_metadata(include_reporting_fields=True)
     self.assertEquals(
       nm.version,
       cluster._metadata.cluster_software_info.nutanix_info.version)
 
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_update_metadata_contains_correct_nodes(self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
+
+    cluster = AcropolisCluster(self.cluster_metadata)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["this", "that", "the other", "and the last one"]
+      self.assertEqual(4, len(cluster.nodes()))
+
   def test_nodes(self):
     cluster_nodes = self.cluster_metadata.cluster_nodes
+    del cluster_nodes[:]
     for index in range(1, 5):
       node = cluster_nodes.add()
       node.id = "aaaaaaaa-aaaa-aaaa-0001-00000000000%d" % index
@@ -198,101 +440,48 @@ class TestAcropolisCluster(unittest.TestCase):
         self.assertEqual(entity["uuid"], node.node_id())
         self.assertEqual(entity["hypervisorAddress"], node.node_ip())
 
-  def test_nodes_by_ip_address(self):
-    cluster_nodes = self.cluster_metadata.cluster_nodes
-    for index in range(1, 5):
-      node = cluster_nodes.add()
-      node.id = "10.60.5.%d" % (70 + index)
-      oob_info = node.node_out_of_band_management_info
-      oob_info.interface_type = oob_info.kIpmi
-    cluster = AcropolisCluster(self.cluster_metadata)
-    hosts_get_data = {
-      "metadata": {},
+  @mock.patch("curie.nutanix_cluster_dp_mixin.NutanixRestApiClient")
+  def test_nodes_if_cluster_contains_fewer_nodes(self, m_NutanixRestApiClient):
+    m_prism_client = mock.MagicMock(spec=NutanixRestApiClient)
+    m_NutanixRestApiClient.from_proto.return_value = m_prism_client
+
+    def fake_clusters_get(**kwargs):
+      cluster_data = {"clusterUuid": "fake-cluster-id"}
+      if kwargs.get("cluster_id"):
+        return cluster_data
+      else:
+        return {"entities": [cluster_data]}
+
+    m_prism_client.clusters_get.side_effect = fake_clusters_get
+    m_prism_client.hosts_get.return_value = {
       "entities": [
         {
-          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000001",
-          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000001",
-          "name": "RTP-Test-14-1",
-          "serviceVMExternalIP": "10.60.4.71",
-          "hypervisorAddress": "10.60.5.71",
-          "controllerVmBackplaneIp": "10.60.4.71",
-          "managementServerName": "10.60.5.71",
-          "ipmiAddress": "10.60.2.71",
-          "hypervisorState": "kAcropolisNormal",
-          "state": "NORMAL",
-          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
-          "stats": {},
-          "usageStats": {},
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_0"
         },
         {
-          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000002",
-          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000002",
-          "name": "RTP-Test-14-2",
-          "serviceVMExternalIP": "10.60.4.72",
-          "hypervisorAddress": "10.60.5.72",
-          "controllerVmBackplaneIp": "10.60.4.72",
-          "managementServerName": "10.60.5.72",
-          "ipmiAddress": "10.60.2.72",
-          "hypervisorState": "kAcropolisNormal",
-          "state": "NORMAL",
-          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
-          "stats": {},
-          "usageStats": {},
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_1"
         },
         {
-          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000003",
-          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000003",
-          "name": "RTP-Test-14-3",
-          "serviceVMExternalIP": "10.60.4.73",
-          "hypervisorAddress": "10.60.5.73",
-          "controllerVmBackplaneIp": "10.60.4.73",
-          "managementServerName": "10.60.5.73",
-          "ipmiAddress": "10.60.2.73",
-          "hypervisorState": "kAcropolisNormal",
-          "state": "NORMAL",
-          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
-          "stats": {},
-          "usageStats": {},
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_2"
         },
         {
-          "serviceVMId": "aaaaaaaa-aaaa-aaaa-0000-000000000004",
-          "uuid": "aaaaaaaa-aaaa-aaaa-0001-000000000004",
-          "name": "RTP-Test-14-4",
-          "serviceVMExternalIP": "10.60.4.74",
-          "hypervisorAddress": "10.60.5.74",
-          "controllerVmBackplaneIp": "10.60.4.74",
-          "managementServerName": "10.60.5.74",
-          "ipmiAddress": "10.60.2.74",
-          "hypervisorState": "kAcropolisNormal",
-          "state": "NORMAL",
-          "clusterUuid": "aaaaaaaa-aaaa-aaaa-0002-000000000000",
-          "stats": {},
-          "usageStats": {},
+          "clusterUuid": "fake-cluster-id",
+          "uuid": "fake_node_uuid_3"
         },
       ]
     }
 
-    def fake_hosts_get_by_id(host_id, *args, **kwargs):
-      for host in hosts_get_data["entities"]:
-        if host["uuid"] == host_id:
-          return host
-      raise RuntimeError("Host '%s' not found" % host_id)
-
-    with mock.patch("curie.nutanix_rest_api_client.requests.Session.get") as m_get, \
-         mock.patch("curie.nutanix_rest_api_client.NutanixRestApiClient.hosts_get_by_id", wraps=fake_hosts_get_by_id) as m_hosts_get_by_id:
-      m_response = mock.Mock()
-      m_response.status_code = 200
-      m_response.content = json.dumps(hosts_get_data)
-      m_response.json.return_value = hosts_get_data
-      m_get.return_value = m_response
-
-      nodes = cluster.nodes()
-
-      for index, (node, entity) in enumerate(zip(nodes, hosts_get_data["entities"])):
-        self.assertIsInstance(node, AcropolisNode)
-        self.assertEqual(index, node.node_index())
-        self.assertEqual(entity["uuid"], node.node_id())
-        self.assertEqual(entity["hypervisorAddress"], node.node_ip())
+    del self.cluster_metadata.cluster_nodes[-1]  # Remove the last item.
+    cluster = AcropolisCluster(self.cluster_metadata)
+    with mock.patch.object(cluster, "identifier_to_node_uuid") as m_itnu:
+      m_itnu.side_effect = ["fake_node_uuid_0",
+                            "fake_node_uuid_1",
+                            "fake_node_uuid_2",
+                            "fake_node_uuid_3"]
+      self.assertEqual(3, len(cluster.nodes()))
 
   @mock.patch.object(NutanixRestApiClient, "hosts_stats_get_by_id")
   def test_collect_performance_stats(self, mock_hosts_stats):

@@ -86,6 +86,7 @@ class IpmiUtil(OobManagementUtil):
 
   def __init__(self, ip, username, password, interface="lanplus",
                verbosity=0, ipmitool_abspath="/usr/bin/ipmitool"):
+    self.host = ip
     self.__ipmitool_abspath = ipmitool_abspath
     self.__flags = {
       "host": Flag("-H", ip),

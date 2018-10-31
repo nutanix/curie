@@ -12,15 +12,19 @@ import mock
 
 from curie import curie_server_state_pb2
 from curie.acropolis_cluster import AcropolisCluster
-from curie.curie_server_state_pb2 import CurieSettings
 from curie.cluster import Cluster
+from curie.curie_server_state_pb2 import CurieSettings
 from curie.generic_vsphere_cluster import GenericVsphereCluster
+from curie.hyperv_cluster import HyperVCluster
 from curie.node import Node
 from curie.nutanix_hyperv_cluster import NutanixHypervCluster
 from curie.nutanix_vsphere_cluster import NutanixVsphereCluster
-from curie.hyperv_cluster import HyperVCluster
+from curie.oob_management_util import OobInterfaceType
+from curie.proto_util import proto_patch_encryption_support
 
 log = logging.getLogger(__name__)
+
+proto_patch_encryption_support(CurieSettings)
 
 
 def run_step(test, phase, step_num):
@@ -59,12 +63,16 @@ def mock_cluster(node_count=4, spec=Cluster):
   cluster_metadata = CurieSettings.Cluster()
   cluster_metadata.cluster_name = "MockCluster"
   nodes = [mock.Mock(spec=Node) for _ in xrange(node_count)]
-  for id, node in enumerate(nodes):
-    node.node_id.return_value = id
-    node.node_index.return_value = id
+  for index, node in enumerate(nodes):
+    node.node_id.return_value = "169.254.0.%d" % index
+    node.node_index.return_value = index
+    node.node_ip.return_value = node.node_id()
     curr_node = cluster_metadata.cluster_nodes.add()
-    curr_node.id = str(id)
-    curr_node.node_out_of_band_management_info.ip_address = "127.0.0.%d" % id
+    curr_node.id = node.node_id()
+    curr_node.node_out_of_band_management_info.interface_type = OobInterfaceType.kIpmi
+    curr_node.node_out_of_band_management_info.ip_address = "127.0.0.%d" % index
+    curr_node.node_out_of_band_management_info.username = "fake_user"
+    curr_node.node_out_of_band_management_info.password = "fake_password"
     node.metadata.return_value = curr_node
   cluster.nodes.return_value = nodes
   cluster.node_count.return_value = len(nodes)
@@ -73,7 +81,8 @@ def mock_cluster(node_count=4, spec=Cluster):
 
 
 def cluster_from_json(filepath):
-  """Construct a Cluster from a metis-flavored JSON file.
+  """
+  Construct a Cluster from a metis-flavored JSON file.
 
   Args:
     filepath (str): Path to the JSON file.
@@ -87,6 +96,19 @@ def cluster_from_json(filepath):
   with open(filepath, "r") as f:
     config = json.load(f)
 
+  return cluster_from_metis_config(config)
+
+
+def cluster_from_metis_config(config):
+  """
+  Construct a Cluster from a metis-flavored object.
+
+  Args:
+    config (dict): Metis data.
+
+  Returns:
+    Cluster
+  """
   curie_settings = curie_server_state_pb2.CurieSettings()
   cluster = curie_settings.Cluster()
   cluster.cluster_name = config["cluster.name"]

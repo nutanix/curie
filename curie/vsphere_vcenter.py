@@ -525,43 +525,17 @@ class VsphereVcenter(object):
       CurieException: if any of the nodes already specified in 'metadata'
       aren't found in the cluster.
     """
-    vsphere_node_ids = sorted([vim_host.name for vim_host in vim_cluster.host])
-    metadata_node_ids = [node.id for node in metadata.cluster_nodes]
-    # TODO: check that all nodes in 'node_id_set' are part of the same cluster
-    # (e.g., the same Nutanix cluster).
     node_id_metadata_map = {}
-    # Verify existing node IDs in 'metadata' and add existing node ID metadata
-    # to 'node_id_metadata_map'.
-    for vcenter_node_id in vsphere_node_ids:
-      if vcenter_node_id not in metadata_node_ids:
-        raise CurieTestException(
-          cause=
-          "Node with ID '%s' found in the vSphere cluster '%s', but not in "
-          "the Curie cluster metadata." % (vcenter_node_id, vim_cluster.name),
-          impact=
-          "The configured cluster can not be used because the nodes chosen "
-          "for this cluster do not exactly match the nodes in vSphere.",
-          corrective_action=
-          "Please check that all of the nodes in the vSphere cluster are part "
-          "of the cluster configuration. For example, if the vSphere cluster "
-          "has four nodes, please check that all four nodes are being used in "
-          "the Curie cluster configuration. If the nodes are managed in "
-          "vSphere by FQDN, please check that the nodes were also added by "
-          "their FQDN to the Curie cluster metadata."
-        )
     for cluster_node in metadata.cluster_nodes:
       node_id_metadata_map[cluster_node.id] = cluster_node
-    # Add minimal node ID metadata for remaining nodes to
-    # 'node_id_metadata_map'.
-    for node_id in vsphere_node_ids:
-      if node_id not in node_id_metadata_map:
-        node_id_metadata_map[node_id] = metadata.cluster_nodes.add()
-        node_id_metadata_map[node_id].id = node_id
-    # Update metadata for all nodes in the cluster with additional information
+    # Update metadata for all nodes in the metadata with additional information
     # (if available).
     if include_reporting_fields:
       for vim_host in vim_cluster.host:
         node_id = vim_host.name
+        # Skip nodes not in metadata.
+        if node_id not in node_id_metadata_map:
+          continue
         vim_host_hw_info = get_optional_vim_attr(vim_host, "hardware")
         if vim_host_hw_info is None:
           log.warning("No hardware information for node %s on %s",

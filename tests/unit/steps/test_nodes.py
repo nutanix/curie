@@ -11,6 +11,7 @@ from curie.curie_server_state_pb2 import CurieSettings
 from curie.cluster import Cluster
 from curie.exception import CurieTestException, ScenarioTimeoutError
 from curie.node import Node
+from curie.proto_util import proto_patch_encryption_support
 from curie.scenario import Scenario
 from curie import steps
 from curie.testing import environment
@@ -20,6 +21,7 @@ class TestStepsNodes(unittest.TestCase):
   def setUp(self):
     self.cluster = mock.Mock(spec=Cluster)
 
+    proto_patch_encryption_support(CurieSettings)
     cluster_metadata = CurieSettings.Cluster()
     cluster_metadata.cluster_name = "MockCluster"
     self.nodes = [mock.Mock(spec=Node) for _ in xrange(4)]
@@ -28,6 +30,12 @@ class TestStepsNodes(unittest.TestCase):
       node.node_index.return_value = id
       curr_node = cluster_metadata.cluster_nodes.add()
       curr_node.id = str(id)
+      oob_info = curr_node.node_out_of_band_management_info
+      oob_info.interface_type = oob_info.kIpmi
+      oob_info.vendor = oob_info.kUnknownVendor
+      oob_info.ip_address = "1.2.3.%d" % id
+      oob_info.username = "username"
+      oob_info.password = "password"
 
     self.cluster.nodes.return_value = self.nodes
     self.cluster.node_count.return_value = len(self.nodes)
@@ -38,14 +46,16 @@ class TestStepsNodes(unittest.TestCase):
       output_directory=environment.test_output_dir(self))
 
   @mock.patch("curie.steps.nodes.WaitForPowerOff")
-  def test_PowerOff_default(self, mock_power_off_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_off")
+  def test_PowerOff_default(self, m_power_off, mock_power_off_wait):
+    m_power_off.return_value = True
     step = steps.nodes.PowerOff(self.scenario, 0)
     instance = mock_power_off_wait.return_value
     instance.return_value = None
     with mock.patch.object(step, "create_annotation") as mock_annotate:
       step()
       self.assertEqual(mock_annotate.call_count, 1)
-    self.assertEqual(self.nodes[0].power_off.call_count, 1)
+    self.assertEqual(m_power_off.call_count, 1)
     for mock_node in self.nodes[1:]:
       mock_node.power_off.assert_not_called()
     mock_power_off_wait.assert_called_once_with(self.scenario, "0", 2400,
@@ -58,7 +68,8 @@ class TestStepsNodes(unittest.TestCase):
     self.assertIsInstance(step, steps.nodes.PowerOff)
 
   @mock.patch("curie.steps.nodes.WaitForPowerOff")
-  def test_PowerOff_wait_secs_non_default(self, mock_power_off_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_off")
+  def test_PowerOff_wait_secs_non_default(self, m_power_off, mock_power_off_wait):
     step = steps.nodes.PowerOff(self.scenario, 0, wait_secs=5000)
     instance = mock_power_off_wait.return_value
     instance._run.return_value = None
@@ -68,14 +79,36 @@ class TestStepsNodes(unittest.TestCase):
                                                 annotate=True)
 
   @mock.patch("curie.steps.nodes.WaitForPowerOff")
-  def test_PowerOff_wait_secs_zero(self, mock_power_off_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_off")
+  def test_PowerOff_unknown_vendor_wait_secs_zero(
+      self, m_power_off, mock_power_off_wait):
     step = steps.nodes.PowerOff(self.scenario, 0, wait_secs=0)
     instance = mock_power_off_wait.return_value
     instance._run.return_value = None
     with mock.patch.object(step, "create_annotation") as mock_annotate:
       step()
       self.assertEqual(mock_annotate.call_count, 1)
-    self.assertEqual(self.nodes[0].power_off.call_count, 1)
+    self.assertEqual(m_power_off.call_count, 1)
+    mock_power_off_wait.assert_not_called()
+    instance._run.assert_not_called()
+
+  @mock.patch("curie.steps.nodes.WaitForPowerOff")
+  @mock.patch("curie.idrac_util.IdracUtil.power_off")
+  def test_PowerOff_dell_wait_secs_zero(
+      self, m_power_off, mock_power_off_wait):
+    cluster_metadata = self.cluster.metadata()
+    for node_metadata in cluster_metadata.cluster_nodes:
+      oob_info = node_metadata.node_out_of_band_management_info
+      oob_info.vendor = oob_info.kDell
+    self.cluster.metadata.return_value = cluster_metadata
+
+    step = steps.nodes.PowerOff(self.scenario, 0, wait_secs=0)
+    instance = mock_power_off_wait.return_value
+    instance._run.return_value = None
+    with mock.patch.object(step, "create_annotation") as mock_annotate:
+      step()
+      self.assertEqual(mock_annotate.call_count, 1)
+    self.assertEqual(m_power_off.call_count, 1)
     mock_power_off_wait.assert_not_called()
     instance._run.assert_not_called()
 
@@ -161,14 +194,15 @@ class TestStepsNodes(unittest.TestCase):
       step()
 
   @mock.patch("curie.steps.nodes.WaitForPowerOn")
-  def test_PowerOn_default(self, mock_power_on_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_on")
+  def test_PowerOn_default(self, m_power_on, mock_power_on_wait):
     step = steps.nodes.PowerOn(self.scenario, 0)
     instance = mock_power_on_wait.return_value
     instance.return_value = None
     with mock.patch.object(step, "create_annotation") as mock_annotate:
       step()
       self.assertEqual(mock_annotate.call_count, 1)
-    self.assertEqual(self.nodes[0].power_on.call_count, 1)
+    self.assertEqual(m_power_on.call_count, 1)
     for mock_node in self.nodes[1:]:
       mock_node.power_on.assert_not_called()
     mock_power_on_wait.assert_called_once_with(self.scenario, "0", 2400,
@@ -181,7 +215,8 @@ class TestStepsNodes(unittest.TestCase):
     self.assertIsInstance(step, steps.nodes.PowerOn)
 
   @mock.patch("curie.steps.nodes.WaitForPowerOn")
-  def test_PowerOn_wait_secs_non_default(self, mock_power_on_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_on")
+  def test_PowerOn_wait_secs_non_default(self, m_power_on, mock_power_on_wait):
     step = steps.nodes.PowerOn(self.scenario, 0, wait_secs=5000)
     instance = mock_power_on_wait.return_value
     instance._run.return_value = None
@@ -191,14 +226,36 @@ class TestStepsNodes(unittest.TestCase):
                                                annotate=True)
 
   @mock.patch("curie.steps.nodes.WaitForPowerOn")
-  def test_PowerOn_wait_secs_zero(self, mock_power_on_wait):
+  @mock.patch("curie.ipmi_util.IpmiUtil.power_on")
+  def test_PowerOn_unknown_vendor_wait_secs_zero(
+      self, m_power_on, mock_power_on_wait):
     step = steps.nodes.PowerOn(self.scenario, 0, wait_secs=0)
     instance = mock_power_on_wait.return_value
     instance._run.return_value = None
     with mock.patch.object(step, "create_annotation") as mock_annotate:
       step()
       self.assertEqual(mock_annotate.call_count, 1)
-    self.assertEqual(self.nodes[0].power_on.call_count, 1)
+    self.assertEqual(m_power_on.call_count, 1)
+    mock_power_on_wait.assert_not_called()
+    instance._run.assert_not_called()
+
+  @mock.patch("curie.steps.nodes.WaitForPowerOn")
+  @mock.patch("curie.idrac_util.IdracUtil.power_on")
+  def test_PowerOn_dell_wait_secs_zero(
+      self, m_power_on, mock_power_on_wait):
+    cluster_metadata = self.cluster.metadata()
+    for node_metadata in cluster_metadata.cluster_nodes:
+      oob_info = node_metadata.node_out_of_band_management_info
+      oob_info.vendor = oob_info.kDell
+    self.cluster.metadata.return_value = cluster_metadata
+
+    step = steps.nodes.PowerOn(self.scenario, 0, wait_secs=0)
+    instance = mock_power_on_wait.return_value
+    instance._run.return_value = None
+    with mock.patch.object(step, "create_annotation") as mock_annotate:
+      step()
+      self.assertEqual(mock_annotate.call_count, 1)
+    self.assertEqual(m_power_on.call_count, 1)
     mock_power_on_wait.assert_not_called()
     instance._run.assert_not_called()
 

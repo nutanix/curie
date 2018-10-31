@@ -26,11 +26,13 @@ class VMGroup(object):
   DEFAULT_TEMPLATE_TYPE = "DISK"
   DEFAULT_VCPUS = 2
   DEFAULT_RAM_MB = 2048
+  DEFAULT_EXPORTER_PORTS = [9100]
 
   def __init__(self, scenario, name, template=None,
                template_type=DEFAULT_TEMPLATE_TYPE, vcpus=DEFAULT_VCPUS,
                ram_mb=DEFAULT_RAM_MB, data_disks=(), nodes=None,
-               count_per_cluster=None, count_per_node=None):
+               count_per_cluster=None, count_per_node=None,
+               exporter_ports=DEFAULT_EXPORTER_PORTS):
     self._scenario = scenario
     self._name = name
     if len(self._name) > VMGroup.MAX_NAME_LENGTH:
@@ -49,6 +51,7 @@ class VMGroup(object):
     self._node_slice_str = ":"
     self._count_per_cluster = count_per_cluster
     self._count_per_node = count_per_node
+    self.exporter_ports = exporter_ports
 
   def __str__(self):
     return "%s %s" % (self.__class__.__name__, self._name)
@@ -71,6 +74,9 @@ class VMGroup(object):
       mutually exclusive to count_per_node.
       - count_per_node: an integer defining the number of VMs to place on
       each node selected by "nodes".
+      - exporter_ports: a list of ports on which the workload VMs are expected
+      to provide prometheus-scrapable data. Defaults to [9100], the normal port
+      for a node-exporter.
 
     Args:
       scenario: The Scenario object.
@@ -197,6 +203,8 @@ class VMGroup(object):
   def __parse_definition(self, definition):
     """Translates a definition dictionary to protected variables."""
     self._template = definition.get("template", None)
+    self.exporter_ports = definition.get("exporter_ports",
+                                         self.DEFAULT_EXPORTER_PORTS)
     if self._template is None:
       raise CurieTestException("Template must be defined for VMGroup %s"
                                 % self.name())

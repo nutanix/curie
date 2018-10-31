@@ -95,11 +95,6 @@ class Cluster(object):
     ]
     return metrics
 
-  def node_metadata(self, node_id):
-    CHECK(node_id in self._node_id_metadata_map,
-          "Invalid node_id '%s'" % node_id)
-    return self._node_id_metadata_map.get(node_id)
-
   @abstractmethod
   def update_metadata(self, include_reporting_fields):
     """

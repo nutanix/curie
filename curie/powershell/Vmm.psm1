@@ -1432,6 +1432,26 @@ Function Remove-ClusterVmmObjects($session, $cluster_name, $json_params="{}") {
     return $response
 }
 
+# Returns ScVMM server version
+Function Get-VMMVersion($session, $json_params="{}") {
+    $response = $null
+
+    try {
+        $sc = {
+            $vmmServer.ProductVersion
+        }
+        $vmmServerVersion = Invoke-Command -Session $session -ScriptBlock $sc -ErrorAction Stop
+
+        $response = [HypervRestApiResponse]::new(200, $vmmServerVersion)
+    } catch {
+        # rethrow exception
+        Write-Log "ERROR"   "Could not get ScVMM server version. " + $_.Exception.Message
+        throw [HypervRestApiException]::new(401, "BAD_REQUEST", "Could not get ScVMM server version. " + $_.Exception.Message, $null)
+    }
+
+    return $response
+}
+
 # Returns all HyperV clusters defined in SC VMM with their default storage locations and networks.
 Function Get-VmmHypervCluster($session, $json_params="{}") {
     $params = ConvertFrom-Json $json_params

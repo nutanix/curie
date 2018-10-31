@@ -2,6 +2,7 @@
 #  Copyright (c) 2016 Nutanix Inc. All rights reserved.
 #
 #
+import json
 import logging
 import unittest
 import uuid
@@ -9,14 +10,14 @@ import uuid
 import gflags
 import mock
 
+from curie import steps
 from curie.acropolis_cluster import AcropolisCluster
 from curie.exception import CurieTestException, CurieException
 from curie.hyperv_cluster import HyperVCluster
 from curie.name_util import NameUtil
 from curie.scenario import Scenario
-from curie import steps
-from curie.vm_group import VMGroup
 from curie.testing import environment, util
+from curie.vm_group import VMGroup
 
 log = logging.getLogger(__name__)
 
@@ -251,6 +252,28 @@ class TestIntegrationStepsVm(unittest.TestCase):
     self.scenario.vm_groups = {}
     with self.assertRaises(CurieTestException):
       steps.vm_group.PowerOn(self.scenario, "not-a-group")
+
+  def test_power_on_with_cluster_using_only_a_subset_of_nodes(self):
+    with open(gflags.FLAGS.cluster_config_path) as f:
+      config = json.load(f)
+    config["nodes"] = config["nodes"][:1]  # Keep only the first node.
+    cluster = util.cluster_from_metis_config(config)
+    cluster.update_metadata(False)
+    scenario = Scenario(
+      cluster=cluster,
+      output_directory=environment.test_output_dir(self),
+      goldimages_directory=gflags.FLAGS.curie_vmdk_goldimages_dir)
+
+    scenario.vm_groups = {
+      self.group_name: VMGroup(scenario, self.group_name,
+                               template="ubuntu1604",
+                               template_type="DISK",
+                               count_per_cluster=1)}
+    vms = steps.vm_group.CloneFromTemplate(scenario, self.group_name)()
+    steps.vm_group.PowerOn(scenario, self.group_name)()
+    for vm in self.cluster.find_vms([vm.vm_name() for vm in vms]):
+      self.assertTrue(vm.is_powered_on())
+      self.assertTrue(vm.is_accessible())
 
   def test_Grow_count_per_cluster(self):
     vm_group = VMGroup(self.scenario, self.group_name,

@@ -112,7 +112,6 @@ class VsphereCluster(Cluster):
     ]
     return super(VsphereCluster, cls).metrics() + metrics
 
-
   def update_metadata(self, include_reporting_fields):
     with self._open_vcenter_connection() as vcenter:
       vim_cluster = self._lookup_vim_cluster(vcenter)
@@ -179,10 +178,27 @@ class VsphereCluster(Cluster):
       nodes = []
       if any(map(self._metadata.cluster_software_info.HasField,
                  ["nutanix_info", "vsan_info", "generic_info"])):
-        for ii, vim_host in enumerate(vim_cluster.host):
-          node_id = vim_host.name
-          node = VsphereNode(self, node_id, ii)
-          nodes.append(node)
+        vim_host_names = [vim_host.name for vim_host in vim_cluster.host]
+        for index, cluster_node in enumerate(self._metadata.cluster_nodes):
+          if cluster_node.id not in vim_host_names:
+            raise CurieTestException(
+              cause=
+              "Node with ID '%s' is in the Curie cluster metadata, but not "
+              "found in vSphere cluster '%s'." %
+              (cluster_node.id, vim_cluster.name),
+              impact=
+              "The cluster configuration is invalid.",
+              corrective_action=
+              "Please check that all of the nodes in the Curie cluster "
+              "metadata are part of the vSphere cluster. For example, if the "
+              "cluster configuration has four nodes, please check that all "
+              "four nodes are present in the vSphere cluster. If the nodes "
+              "are managed in vSphere by FQDN, please check that the nodes "
+              "were also added by their FQDN to the Curie cluster metadata."
+            )
+          else:
+            nodes.append(VsphereNode(self, cluster_node.id, index))
+        return nodes
       else:
         raise CurieTestException(
           "Unsupported software on vSphere cluster, %s" % self._metadata)

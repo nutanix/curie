@@ -34,7 +34,8 @@ function Connect-VmmSession ($vmm_address, $username, $password) {
     $sc = {
         $vmmPwd = ConvertTo-SecureString -AsPlainText -Force -String $Using:password
         $vmmCred = New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $Using:username, $vmmPwd
-        Get-SCVMMServer -ComputerName $Using:vmm_address -Credential $vmmCred
+        $vmmServer = Get-SCVMMServer -ComputerName $Using:vmm_address -Credential $vmmCred
+        $vmmServer
     }
 
     $vmmServer = Invoke-Command -Session $session -ScriptBlock $sc -ErrorAction Stop

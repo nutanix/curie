@@ -65,6 +65,44 @@ class TestStepsVmGeneric(unittest.TestCase):
       "__curie_goldimage_%d_valid-template_group_0._-_" % self.scenario.id,
       data_disks=(), node_id=0, ram_mb=2048, vcpus=2)
     self.assertEqual(self.cluster.clone_vms.call_count, 1)
+    self.assertEqual(self.cluster.disable_ha_vms.call_count, 1)
+    self.assertEqual(self.cluster.disable_drs_vms.call_count, 1)
+    self.assertEqual(self.cluster.power_on_vms.call_count, 0)
+
+  def test_CloneFromTemplate_enable_ha(self):
+    self.vm_group._template = "valid-template"
+    template_vm = mock.Mock(spec=Vm)
+    self.cluster.find_vm.side_effect = [None]
+    self.cluster.import_vm.side_effect = [template_vm]
+    step = steps.vm_group.CloneFromTemplate(self.scenario,
+                                            self.vm_group.name(),
+                                            disable_ha=False)
+    step()
+    self.cluster.create_vm.assert_called_once_with(
+      "/fake/goldimages/directory/", "valid-template",
+      "__curie_goldimage_%d_valid-template_group_0._-_" % self.scenario.id,
+      data_disks=(), node_id=0, ram_mb=2048, vcpus=2)
+    self.assertEqual(self.cluster.clone_vms.call_count, 1)
+    self.assertEqual(self.cluster.disable_ha_vms.call_count, 0)
+    self.assertEqual(self.cluster.disable_drs_vms.call_count, 1)
+    self.assertEqual(self.cluster.power_on_vms.call_count, 0)
+
+  def test_CloneFromTemplate_enable_drs(self):
+    self.vm_group._template = "valid-template"
+    template_vm = mock.Mock(spec=Vm)
+    self.cluster.find_vm.side_effect = [None]
+    self.cluster.import_vm.side_effect = [template_vm]
+    step = steps.vm_group.CloneFromTemplate(self.scenario,
+                                            self.vm_group.name(),
+                                            disable_drs=False)
+    step()
+    self.cluster.create_vm.assert_called_once_with(
+      "/fake/goldimages/directory/", "valid-template",
+      "__curie_goldimage_%d_valid-template_group_0._-_" % self.scenario.id,
+      data_disks=(), node_id=0, ram_mb=2048, vcpus=2)
+    self.assertEqual(self.cluster.clone_vms.call_count, 1)
+    self.assertEqual(self.cluster.disable_ha_vms.call_count, 1)
+    self.assertEqual(self.cluster.disable_drs_vms.call_count, 0)
     self.assertEqual(self.cluster.power_on_vms.call_count, 0)
 
   def test_CloneFromTemplate_init_cluster_None(self):
@@ -106,6 +144,8 @@ class TestStepsVmGeneric(unittest.TestCase):
       step()
       self.assertEqual(self.cluster.create_vm.call_count, 1)
       self.assertEqual(self.cluster.clone_vms.call_count, 1)
+      self.assertEqual(self.cluster.disable_ha_vms.call_count, 1)
+      self.assertEqual(self.cluster.disable_drs_vms.call_count, 1)
       self.assertEqual(self.cluster.power_on_vms.call_count, 1)
       self.assertEqual(mock_annotate.call_count, 2)
 
@@ -411,6 +451,39 @@ class TestStepsVmGeneric(unittest.TestCase):
       self.assertIn(
         "Cause: A timeout occurred waiting for VM(s) in VM Group '%s' to "
         "become responsive within 120 seconds.\n\n"
+        "Impact: The VM(s) are not responding due to a network connectivity "
+        "issue, or because of an unsuccessful startup (boot).\n\n"
+        "Corrective Action: Please check the network connectivity to the VMs "
+        "on the cluster, and that the VMs received IP addresses in the "
+        "expected IP subnet. For information about which VMs were "
+        "unresponsive and for details about the assigned IP addresses, please "
+        "check curie.debug.log.\n\n"
+        "Traceback (most recent call last):\n" % self.vm_group.name(),
+        str(ar.exception)
+      )
+
+  def test_WaitForPowerOn_invalid_vm_group_name(self):
+    with self.assertRaises(CurieTestException):
+      steps.vm_group.WaitForPowerOn(self.scenario, "not_a_vm_group")
+
+  @mock.patch("curie.util.time")
+  def test_WaitForPowerOn_inaccessible(self, mock_time):
+    now = time.time()
+    mock_time.time.side_effect = lambda: mock_time.time.call_count + now
+    mock_time.sleep.return_value = 0
+    for mock_vm in self.vms:
+      mock_vm.is_powered_on.return_value = True
+      mock_vm.vm_ip.return_value = "169.254.0.1"
+      mock_vm.is_accessible.return_value = False
+    step = steps.vm_group.WaitForPowerOn(self.scenario, self.vm_group.name())
+    with mock.patch.object(self.vm_group, "get_vms",
+                           wraps=self.vm_group.get_vms) as mock_get_vms:
+      with self.assertRaises(CurieTestException) as ar:
+        step()
+      self.assertEqual(601, mock_get_vms.call_count)
+      self.assertIn(
+        "Cause: A timeout occurred waiting for VM(s) in VM Group '%s' to "
+        "become responsive within 600 seconds.\n\n"
         "Impact: The VM(s) are not responding due to a network connectivity "
         "issue, or because of an unsuccessful startup (boot).\n\n"
         "Corrective Action: Please check the network connectivity to the VMs "

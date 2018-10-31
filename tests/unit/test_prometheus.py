@@ -407,6 +407,38 @@ class TestPrometheusAdapter(unittest.TestCase):
       mock_query_range.assert_called_once_with(
         expected_query_str, 1510076387, 1510076487, step=None)
 
+  def test_get_generic(self):
+    vm_group = mock.Mock(spec=VMGroup)
+    vm_group.name.return_value = "Fake VM Group"
+    vm_group._scenario = mock.Mock(spec=Scenario)
+    vm_group._scenario.id = "854982789152076068"
+    expected_query_str = (
+      "irate("
+      "node_network_receive_bytes_total{"
+      "device=\"eth0\", "
+      "scenario_id=\"854982789152076068\", "
+      "vm_group=\"Fake VM Group\""
+      "}"
+      "[30s])"
+    )
+    p = prometheus.PrometheusAdapter()
+    query_input = (
+      "irate("
+      "node_network_receive_bytes_total{"
+      "device=\"eth0\", "
+      "__curie_filter_scenario__, "
+      "__curie_filter_vm_group__"
+      "}"
+      "[30s])"
+    )
+    with mock.patch.object(p, "query_range") as mock_query_range:
+      mock_query_range.return_value = "this_is_fake_data"
+      data = p.get_generic(vm_group, start=1510076387, end=1510076487,
+                           query=query_input)
+      self.assertEqual("this_is_fake_data", data)
+      mock_query_range.assert_called_once_with(
+        expected_query_str, 1510076387, 1510076487, step=None)
+
   def test_to_series_default(self):
     data = {
       u"resultType": u"matrix",

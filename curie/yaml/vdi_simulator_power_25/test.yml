@@ -24,7 +24,7 @@ description: |
     <li>Deploy the VDI VM template.</li>
     <li>Pre-fill the VM template with data.</li>
     <li>Shut down the VM template.</li>
-    <li>Clone {{ vms_per_node }} VDI VMs per node.</li>
+    <li>Clone requested count of VDI VMs per node.</li>
     <li>Power on the VDI VMs.</li>
   </ol>
   Measurement
@@ -34,10 +34,10 @@ description: |
   </ol>
   Test Requirements
   <ul class="indented">
-    <li>vCPUs: {{ vms_per_node * 2 }} vCPUs per node</li>
-    <li>RAM: {{ vms_per_node * 2 }} GB per node</li>
+    <li>vCPUs: requested VM count * 2 vCPUs per node</li>
+    <li>RAM: requested VM count * 2 GB per node</li>
     <li>Cluster Storage: Up to 1TB per node depending on cloning technology</li>
-    <li>IP Addresses: {{ vms_per_node }} per node</li>
+    <li>IP Addresses: requested VM count per node</li>
   </ul>
   Note: This test scales with the number of nodes.
 
@@ -98,8 +98,11 @@ results:
   - Cluster CPU Usage:
       metric: CpuUsage.Avg.Megahertz
       aggregate: sum
-  - Cluster Network Bandwidth:
+  - Cluster Network Received:
       metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+  - Cluster Network Transmitted:
+      metric: NetTransmitted.Avg.KilobytesPerSecond
       aggregate: sum
 
 setup:

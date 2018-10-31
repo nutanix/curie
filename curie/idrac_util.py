@@ -96,7 +96,7 @@ class RacAdmRequest(XmlData):
 
   def __init__(self, host, method_name, cookie=None):
     # iDRAC IP Address.
-    self._host = host
+    self.host = host
 
     # Name of method to invoke.
     self._method_name = method_name
@@ -137,7 +137,7 @@ class RacAdmRequest(XmlData):
 
   def send(self):
     """
-    Issues command represented by this instance to iDRAC at 'self._host'.
+    Issues command represented by this instance to iDRAC at 'self.host'.
 
     Returns:
       (dict) parsed XML response.
@@ -146,7 +146,7 @@ class RacAdmRequest(XmlData):
       CurieException<kInvalidParameter> on error.
     """
     cmd_type = "exec" if self._cookie else "login"
-    path = self.URL.format(idrac_ip=self._host, cmd_type=cmd_type)
+    path = self.URL.format(idrac_ip=self.host, cmd_type=cmd_type)
     # Don't log raw login command as credentials are in plaintext.
     if cmd_type != "login":
       log.trace("Sending XML-HTTP request to: %s\n"
@@ -226,7 +226,7 @@ class IdracUtil(OobManagementUtil):
 
   def __init__(self, ip, username, password):
     # iDRAC host IP.
-    self.__host = ip
+    self.host = ip
 
     # iDRAC username.
     self.__username = username
@@ -260,7 +260,7 @@ class IdracUtil(OobManagementUtil):
 
   def power_cycle(self, async=False):
     """
-    Power cycles node associated with iDRAC at 'self.__host'.
+    Power cycles node associated with iDRAC at 'self.host'.
 
     Args:
       async (bool): Optional. If False, issue blocking calls to 'power_off'
@@ -286,7 +286,7 @@ class IdracUtil(OobManagementUtil):
 
   def power_on(self, async=False):
     """
-    Powers on node associated with iDRAC at 'self.__host'.
+    Powers on node associated with iDRAC at 'self.host'.
 
     Args:
       async (bool): Optional. If True, return immediately after command
@@ -307,13 +307,13 @@ class IdracUtil(OobManagementUtil):
 
     return CurieUtil.wait_for(
       self.is_powered_on,
-      "IPMI at '%s' to report node powered on" % self.__host,
+      "IPMI at '%s' to report node powered on" % self.host,
       timeout_secs=600,
       poll_secs=5)
 
   def power_off(self, async=False):
     """
-    Powers off node associated with iDRAC at 'self.__host'.
+    Powers off node associated with iDRAC at 'self.host'.
 
     Args:
       async (bool): Optional. If True, return immediately after command
@@ -334,7 +334,7 @@ class IdracUtil(OobManagementUtil):
 
     return CurieUtil.wait_for(
       lambda: not self.is_powered_on(),
-      "IPMI at '%s' to report node powered off" % self.__host,
+      "IPMI at '%s' to report node powered off" % self.host,
       timeout_secs=600,
       poll_secs=5)
 
@@ -348,7 +348,7 @@ class IdracUtil(OobManagementUtil):
 
   def send_racadm_command(self, cmd, max_retries=5):
     """
-    Issues 'cmd' to iDRAC at 'self.__host', retrying up to 'max_retries' times.
+    Issues 'cmd' to iDRAC at 'self.host', retrying up to 'max_retries' times.
 
     Automatically reauthenticates if necessary.
 
@@ -364,7 +364,7 @@ class IdracUtil(OobManagementUtil):
 
   def __authenticate(self):
     """
-    Send LOGIN request to iDRAC at 'self.__host'.
+    Send LOGIN request to iDRAC at 'self.host'.
 
     Returns:
       (str) Session ID
@@ -372,7 +372,7 @@ class IdracUtil(OobManagementUtil):
     Raises:
       CurieException on error .
     """
-    req = RacAdmRequest(self.__host, "LOGIN")
+    req = RacAdmRequest(self.host, "LOGIN")
     req.add_param("USERNAME", self.__username)
     req.add_param("PASSWORD", self.__password)
 
@@ -396,7 +396,7 @@ class IdracUtil(OobManagementUtil):
     """
     with self.LOCK:
       if cached_ok:
-        session_id = self.HOST_SESSION_ID_MAP.get(self.__host)
+        session_id = self.HOST_SESSION_ID_MAP.get(self.host)
         if session_id:
           return {"Cookie": "sid=%s; path=/cgi-bin/" % session_id}
       for ii in range(max_retries):
@@ -412,12 +412,12 @@ class IdracUtil(OobManagementUtil):
                    % max_retries)
         log.error(err_msg)
         raise CurieException(CurieError.kInternalError, err_msg)
-      self.HOST_SESSION_ID_MAP[self.__host] = session_id
+      self.HOST_SESSION_ID_MAP[self.host] = session_id
       return {"Cookie": "sid=%s; path=/cgi-bin/" % session_id}
 
   def __send_racadm_command(self, cmd):
     """
-    Sends 'cmd' to iDRAC at 'self.__host'.
+    Sends 'cmd' to iDRAC at 'self.host'.
 
     Args:
       cmd (str): Command to execute.
@@ -430,7 +430,7 @@ class IdracUtil(OobManagementUtil):
     """
     log.trace("Issuing iDRAC command: '%s'", cmd)
     req = RacAdmRequest(
-      self.__host, "EXEC", cookie=self.__get_session_cookie())
+      self.host, "EXEC", cookie=self.__get_session_cookie())
     req.add_param("CMDINPUT", "racadm %s" % cmd)
     req.add_param("MAXOUTPUTLEN", "0x0fff")
     # Allow errors here to propagate up.

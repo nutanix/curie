@@ -25,10 +25,14 @@ class CloneFromTemplate(BaseStep):
     power_on (bool): If True, power on the VM group after clone.
     annotate (bool): If True, annotate key points in the step in the test's
       results.
+    disable_drs (bool): If True (default), disable DRS-like functionality for
+      VMs as they are cloned.
+    disable_ha (bool): If True (default), disable HA functionality for VMs as
+      they are cloned.
   """
 
   def __init__(self, scenario, vm_group_name, power_on=False, annotate=False,
-               linked_clone=False):
+               linked_clone=False, disable_drs=True, disable_ha=True):
     """
     Raises:
       CurieTestException:
@@ -37,6 +41,8 @@ class CloneFromTemplate(BaseStep):
     super(CloneFromTemplate, self).__init__(scenario, annotate=annotate)
     self.power_on = power_on
     self.linked_clone = linked_clone
+    self.disable_drs = disable_drs
+    self.disable_ha = disable_ha
     self.vm_group = scenario.vm_groups.get(vm_group_name)
     if self.vm_group is None:
       raise NoVMGroupDefinedError(vm_group_name=vm_group_name, step=self)
@@ -78,8 +84,10 @@ class CloneFromTemplate(BaseStep):
                                     node_ids=node_ids,
                                     linked_clone=self.linked_clone)
     vms = self.vm_group.lookup_vms_by_name(vm_names)
-    self.scenario.cluster.disable_ha_vms(vms)
-    self.scenario.cluster.disable_drs_vms(vms)
+    if self.disable_ha:
+      self.scenario.cluster.disable_ha_vms(vms)
+    if self.disable_drs:
+      self.scenario.cluster.disable_drs_vms(vms)
     self.create_annotation("%s: Finished cloning VMs" %
                            self.vm_group.name())
     if self.power_on:
@@ -304,11 +312,44 @@ class PowerOn(BaseStep):
         "software for any failed VM power on tasks. For information about "
         "which VMs failed to power on correctly, please check "
         "curie.debug.log.")
-    # TODO (jklein): See about cleaning up timeout once Prism cleanup is
-    # integrated with the task changes. Currently the primary source of lag
-    # is discrete Prism queries rather than some form of batching.
-    timeout_secs = 60 * int(1 + math.ceil(len(vms) / 20.0))
+    wait_secs = 60 * int(1 + math.ceil(len(vms) / 20.0))
+    wait_step = WaitForPowerOn(self.scenario, self.vm_group.name(),
+                               wait_secs, annotate=self._annotate)
+    return wait_step()
 
+
+class WaitForPowerOn(BaseStep):
+  """Wait for VMs to power on and for IP addresses to be assigned.
+
+  Args:
+    scenario (Scenario): Scenario this step belongs to.
+    vm_group_name (str): Name of VM group to power off.
+    wait_secs (int): Maximum number of time to wait for VMs to power on.
+    annotate (bool): If True, annotate key points in the step in the test's
+      results.
+  """
+
+  def __init__(self, scenario, vm_group_name, wait_secs=600,
+               annotate=False):
+    """
+    Raises:
+      CurieTestException:
+        If no VM group named vm_group_name exists.
+    """
+    super(WaitForPowerOn, self).__init__(scenario, annotate=annotate)
+    self.wait_secs = wait_secs
+    self.vm_group = scenario.vm_groups.get(vm_group_name)
+    if self.vm_group is None:
+      raise NoVMGroupDefinedError(vm_group_name=vm_group_name, step=self)
+    self.description = "%s: Waiting for VMs to power on" % self.vm_group.name()
+
+  def _run(self):
+    """Wait for VMs to power on.
+
+    Raises:
+      CurieTestException:
+        If the VMs are not powered on within wait_secs seconds.
+    """
     def refresh_and_check_accessible():
       vms = self.vm_group.get_vms()
       for vm in vms:
@@ -321,14 +362,14 @@ class PowerOn(BaseStep):
       ret = self.scenario.wait_for(
         refresh_and_check_accessible,
         "all VMs in '%s' to become accessible" % self.vm_group.name(),
-        timeout_secs=timeout_secs)
+        timeout_secs=self.wait_secs)
     except RuntimeError:
       # Change the error message to be something that's a little more
       # understandable than the generic one returned by wait_for_all.
       raise CurieTestException(
         cause=
         "A timeout occurred waiting for VM(s) in VM Group '%s' to become "
-        "responsive within %d seconds." % (self.vm_group.name(), timeout_secs),
+        "responsive within %d seconds." % (self.vm_group.name(), self.wait_secs),
         impact=
         "The VM(s) are not responding due to a network connectivity issue, or "
         "because of an unsuccessful startup (boot).",
@@ -342,7 +383,7 @@ class PowerOn(BaseStep):
     else:
       self.create_annotation(
         "%s: Finished powering on VMs" % self.vm_group.name())
-    return vms
+    return self.vm_group.get_vms()
 
 
 class Grow(BaseStep):

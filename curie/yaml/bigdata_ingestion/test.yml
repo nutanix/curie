@@ -1,0 +1,95 @@
+name: bigdata_ingestion
+
+display_name: "Big Data Ingestion"
+
+summary: Demonstrate Big Data Ingestion throughput/bandwidth
+
+description: |
+  <strong>What's this test about?</strong><br/>
+  This test is designed to demonstrate how quickly a large amount of data can
+  be ingested by a single host.
+  <br/><br/>
+  <img src='data:image/png;base64,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'>
+  <br/><br/>
+  <strong>How to measure the effectiveness of this test?</strong><br/>
+  Performance is evaluated by measuring the throughput of the big data
+  ingestion workload as, as a result, the time it takes to ingest a large
+  amount of data.
+  <br/><br/>
+  <strong>How is the test run?</strong><br/>
+  Setup
+  <ol>
+    <li>Deploy the VM template.</li>
+    <li>Clone 1 VM on a node</li>
+  </ol>
+  Measurement
+  <ol>
+    <li>Start the ingestion workload.</li>
+    <li>Wait until 1TB data is ingested.</li>
+  </ol>
+  Test Requirements
+  <ul class="indented">
+    <li>vCPUs: 4 vCPUs per VM</li>
+    <li>RAM: 4 GB per VM</li>
+    <li>Cluster Storage: 1 TB per VM</li>
+    <li>IP Addresses: 1 per VM</li>
+  </ul>
+
+tags:
+  - performance
+  - throughput
+
+estimated_runtime: 7200
+
+vms:
+  - BigData:
+      template: ubuntu1604
+      vcpus: 4
+      ram_mb: 4096
+      data_disks:
+        count: 4
+        size: 260
+      nodes: "0"
+      count_per_node: 1
+
+workloads:
+  - BigData:
+      vm_group: BigData
+      config_file: ingestion.fio
+
+results:
+  - BigData Ingestion I/O Throughput:
+      vm_group: BigData
+      result_type: bandwidth
+      aggregate: sum
+      report_group: performance
+      report_metrics:
+        - Median
+      result_hint: "Higher throughput indicates better performance."
+  - Cluster CPU Usage:
+      metric: CpuUsage.Avg.Megahertz
+      aggregate: sum
+  - Cluster Network Bandwidth Received:
+      metric: NetReceived.Avg.KilobytesPerSecond
+      aggregate: sum
+  - Cluster Network Bandwidth Transmitted:
+      metric: NetTransmitted.Avg.KilobytesPerSecond
+      aggregate: sum
+
+setup:
+  - cluster.CleanUp: {}
+  - vm_group.CloneFromTemplate:
+      vm_group_name: BigData
+  - vm_group.PowerOn:
+      vm_group_name: BigData
+  # Wait for counters to stabilize before entering Run phase.
+  - test.Wait:
+      duration_secs: 10
+
+run:
+  - workload.Start:
+      workload_name: BigData
+      timeout_secs: 14400
+
+teardown:
+  - cluster.CleanUp: {}

@@ -69,10 +69,10 @@ class TestClusterResult(unittest.TestCase):
       rate=CurieMetric.kPerSecond,
       experimental=True)
     ScenarioUtil.append_cluster_stats(
-      {"0": [metric],
-       "1": [metric],
-       "2": [metric],
-       "3": [metric],
+      {"169.254.0.0": [metric],
+       "169.254.0.1": [metric],
+       "169.254.0.2": [metric],
+       "169.254.0.3": [metric],
        },
       self.scenario.cluster_stats_dir())
     pbs = result.get_result_pbs()
@@ -94,10 +94,10 @@ class TestClusterResult(unittest.TestCase):
       rate=CurieMetric.kPerSecond,
       experimental=True)
     ScenarioUtil.append_cluster_stats(
-      {"0": [metric],
-       "1": [metric],
-       "2": [],
-       "3": [],
+      {"169.254.0.0": [metric],
+       "169.254.0.1": [metric],
+       "169.254.0.2": [],
+       "169.254.0.3": [],
        },
       self.scenario.cluster_stats_dir())
     pbs = result.get_result_pbs()

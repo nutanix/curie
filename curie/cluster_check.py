@@ -36,6 +36,9 @@ class ClusterCheck(Scenario):
       self.add_step(check.VCenterConnectivity(self), Phase.RUN)
     if include_nutanix_checks:
       self.add_step(check.PrismConnectivity(self), Phase.RUN)
+      for node in nodes:
+        self.add_step(check.PrismHostInSameCluster(
+          self, node_index=node.node_index()), Phase.RUN)
 
     # Node stuff.
     for node in nodes:
