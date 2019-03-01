@@ -799,41 +799,48 @@ Function Install-VmmDiskImage($session, $json_params="{}", $overwriteFiles) {
                         }
                         $targetFiles=@()
                         $sourceFiles=@($diskImageList)
+                        if ($sourceFiles.Count -gt 1) {
+                            # we don't expect more than 1 goldimage currently so throw an exception here
+                            throw "Unsupported number of goldimages to copy. Maximum 1 goldimage is allowed."
+                        }
                         foreach ($src in $sourceFiles) {
-                            $filename = $src.Substring($src.LastIndexOf("/") + 1)
-                            $target = $targetPath + "\" + $filename
+                            $target = $targetPath + "\" + $diskName
                             $targetFiles += $target
                         }
 
                         # Copy all disk images to the VMM library server share
                         $transferFiles = {
-                            param($sourceFiles, $targetFiles, $diskName, $user, $pass)
+                            param($sourceFiles, $targetFiles)
 
                             for ($i=0; $i -lt $sourceFiles.Count; $i++) {
                                 try {
                                     # Copy/Transfer file
-                                    # $str = "Transfer file '" + $sourceFiles[$i] + "' to '" + $targetFiles[$i] + "."
-                                    # Write-Progress -Activity "Goldimage transfer" -Status $str -Percent ($i / $sourceFiles.count * 50)
                                     [Net.ServicePointManager]::ServerCertificateValidationCallback = {$true}
-                                    (new-object System.Net.WebClient).DownloadFile($sourceFiles[$i], $targetFiles[$i])
 
+                                    $srcFilename = $sourceFiles[$i].Substring($sourceFiles[$i].LastIndexOf("/") + 1)
                                     # Uncompress goldimage if in .zip format
-                                    $file = Get-Item $targetFiles[$i]
-                                    if ($file.Extension -eq ".zip") {
-                                        # Write-Progress -Activity "Goldimage transfer" -Status "Uncompressing target file" -Percent (($i / $sourceFiles.count * 50)*2)
+                                    if ($srcFilename.Substring($srcFilename.LastIndexOf('.')+1) -eq "zip") {
+                                        # if source file is '.zip' we will copy it to %temp%
+                                        $tmp = New-TemporaryFile
+                                        $tmpZipFilename = $tmp.FullName + ".zip"
+                                        Rename-Item -Path $tmp.FullName -NewName $tmpZipFilename
+                                        $tmp = Get-Item $tmpZipFilename
+                                        (new-object System.Net.WebClient).DownloadFile($sourceFiles[$i], $tmp.FullName)
+
                                         # Silencing Expand-Archive progress bar output
                                         $oldProgressPreference=$ProgressPreference
                                         $ProgressPreference='SilentlyContinue'
-                                        $file | Expand-Archive -Force -DestinationPath $file.Directory -ErrorAction Stop
+                                        $targetDir = $targetFiles[$i].Substring(0,$targetFiles[$i].LastIndexOf('\') + 1)
+                                        $tmp | Expand-Archive -Force -DestinationPath $targetDir -ErrorAction Stop
                                         $ProgressPreference=$oldProgressPreference
-                                        # .zip file should not be removed here since VMM creates a "hidden file" with ":$VMMID$" postfix
-                                        # $file | Remove-Item -Force
-                                        #rename file
-                                        $sourceFile = $file.FullName.SubString(0, $file.FullName.LastIndexOf("."))
-                                        $targetFile = $sourceFile.SubString(0, $sourceFile.LastIndexOf("\")+1) + $diskName
-                                        Move-Item $sourceFile $targetFile
+                                        # Remove the temporary .zip file
+                                        $tmp | Remove-Item -Force -ErrorAction Stop
+                                        # Rename the destination file
+                                        $unzippedFilename = $targetDir + $srcFilename.Substring(0,$srcFilename.LastIndexOf('.zip'))
+                                        Rename-Item $unzippedFilename $targetFiles[$i]
+                                    } else {
+                                        (new-object System.Net.WebClient).DownloadFile($sourceFiles[$i], $targetFiles[$i])
                                     }
-                                    # Write-Progress -Activity "Goldimage transfer" -Status "File transfer complete" -Percent (($i / $sourceFiles.count * 50)*2)
                                 } catch {
                                     $source = $sourceFiles[$i]
                                     $target = $targetFiles[$i]
@@ -841,7 +848,7 @@ Function Install-VmmDiskImage($session, $json_params="{}", $overwriteFiles) {
                                 }
                             }
                         }
-                        Invoke-Command -Session $s -ScriptBlock $transferFiles -ArgumentList $sourceFiles, $targetFiles, $diskName, $user, $pass `
+                        Invoke-Command -Session $s -ScriptBlock $transferFiles -ArgumentList $sourceFiles, $targetFiles `
                                        -ErrorAction Stop | Out-Null
 
                     } else {
@@ -1069,9 +1076,7 @@ Function Update-Library($session, $json_params="{}") {
             $virtualHardDisk = $disks | Where-Object Location -eq $Using:goldimageDiskPath
             if (-not $virtualHardDisk -or
                 ($virtualHardDisk.State.ToString() -ne 'Normal')) {
-
                 $libShare = Get-SCLibraryShare | Where-Object Path -eq $Using:sharePath
-
                 $jobRunning = $true
                 # Wait while other refresh job is running
                 while ($jobRunning) {
@@ -1105,7 +1110,9 @@ Function Update-Library($session, $json_params="{}") {
                 if (-not $virtualHardDisk -or
                     ($virtualHardDisk.State.ToString() -ne 'Normal')) {
                     # Run library refresh
-                    $libShare = $libShare | Read-SCLibraryShare
+                    $goldimageFileName = $Using:goldImageDiskPath
+                    $goldimageDiskDir =  $goldimageFileName.Substring(0, $goldimageFileName.LastIndexOf("\"))
+                    $libShare = $libShare | Read-SCLibraryShare -Path $goldimageDiskDir
                 }
             }
         }
@@ -2403,16 +2410,18 @@ Function ConvertTo-Template($session, $cluster_name, $json_params="{}") {
     $response = $null
 
     try {
+        $targetDir = $params.target_dir
         $templateName = $params.template_name
         $vmmLibraryServerShare = $params.vmm_library_server_share
 
         $ConvertToTemplate = {
+            $targetDir = $Using:targetDir
             $templateName = $Using:templateName
             $vmmLibraryServerShare = $Using:vmmLibraryServerShare
             $cluster_name = $Using:cluster_name
 
-            $libraryServerShare = Get-SCLibraryShare | Where-Object Path -eq $vmmLibraryServerShare
-            $libraryServer =  $libraryServerShare.LibraryServer
+            $libraryServerShareObject = Get-SCLibraryShare | Where-Object Path -eq $vmmLibraryServerShare
+            $libraryServer =  $libraryServerShareObject.LibraryServer
 
             $vm = Get-SCVirtualMachine -Name $templateName | Where-Object OperatingSystem -eq 'None'
             if($vm.Status -eq "Saved")
@@ -2421,7 +2430,7 @@ Function ConvertTo-Template($session, $cluster_name, $json_params="{}") {
             }
 
             $description = "cluster_name=" + $cluster_name
-            $sharePath = $vmmLibraryServerShare + "\" + $cluster_name
+            $sharePath = $vmmLibraryServerShare + "\" + $targetDir
 
             $template = New-SCVMTemplate -Name $templateName -Description $description -RunAsynchronously -VM $vm[0] `
                                          -LibraryServer $libraryServer -SharePath $sharePath -NoCustomization -JobVariable XRayCloneVM

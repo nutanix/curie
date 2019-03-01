@@ -548,6 +548,63 @@ class VsphereVcenter(object):
         node_hw.cpu_hz = vim_host_hw_info.cpuInfo.hz
         node_hw.memory_size = vim_host_hw_info.memorySize
 
+  def match_node_metadata_to_vcenter(self, vim_cluster, metadata):
+    """
+    Edits the user metadata to match the vCenter inventory node ID.
+
+    Args:
+      vim_cluster (vim.ClusterComputeResource): vSphere cluster.
+      metadata (CurieSettings.Cluster): Cluster metadata.
+
+    Raises:
+      CurieTestException: If any of the nodes already specified in 'metadata'
+        aren't found in the cluster or match is ambiguous.
+    """
+    vcenter_node_ip_map = {}
+    for vim_host in vim_cluster.host:
+      vim_host_vnics = vim_host.config.network.vnic
+      vcenter_node_ip_map[vim_host.name] = [vnic.spec.ip.ipAddress
+                                            for vnic in vim_host_vnics]
+
+    for cluster_node in metadata.cluster_nodes:
+      if cluster_node.id in vcenter_node_ip_map:
+        continue
+      else:
+        matching_vim_host_names = [
+          vim_host_name
+          for vim_host_name, ips in vcenter_node_ip_map.iteritems()
+          if cluster_node.id in ips]
+        if not matching_vim_host_names:
+          raise CurieTestException(
+            cause=
+            "Node with ID '%s' is in the Curie cluster metadata, but not "
+            "found in vSphere cluster '%s'." %
+            (cluster_node.id, vim_cluster.name),
+            impact=
+            "The cluster configuration is invalid.",
+            corrective_action=
+            "Please check that Curie node with ID '%s' is part of the vSphere "
+            "cluster." % cluster_node.id
+          )
+        elif len(matching_vim_host_names) > 1:
+          raise CurieTestException(
+            cause=
+            "More than one node in the vSphere cluster '%s' matches node ID "
+            "'%s'. The matching nodes are: %s." %
+            (vim_cluster.name, cluster_node.id,
+             ", ".join(matching_vim_host_names)),
+            impact=
+            "The cluster configuration is invalid.",
+            corrective_action=
+            "Please check that all node IDs and management IP addresses for "
+            "nodes in the Curie cluster metadata are unique for each node in "
+            "the vSphere cluster, and that hostnames for these nodes are not "
+            "ambiguous."
+          )
+        else:
+          cluster_node.id = matching_vim_host_names[0]
+
+
   def upload_vmdk(self, local_path, remote_path, vim_host, vim_datastore):
     """
     Uploads a VMDK to a target datastore via a specific host.
@@ -650,7 +707,7 @@ class VsphereVcenter(object):
             <rasd:ResourceType>6</rasd:ResourceType>
           </Item>""".format(address=index + 1,
                             instance_id=starting_instance_id + index,
-                            type="lsilogic")
+                            type="VirtualSCSI")
         scsi_controller_strings.append(scsi_controller_string)
       return "".join(scsi_controller_strings)
 
@@ -754,7 +811,7 @@ class VsphereVcenter(object):
             <rasd:Description>SCSI Controller</rasd:Description>
             <rasd:ElementName>SCSI Controller 0</rasd:ElementName>
             <rasd:InstanceID>8</rasd:InstanceID>
-            <rasd:ResourceSubType>lsilogic</rasd:ResourceSubType>
+            <rasd:ResourceSubType>VirtualSCSI</rasd:ResourceSubType>
             <rasd:ResourceType>6</rasd:ResourceType>
           </Item>
           <Item>
@@ -1241,42 +1298,44 @@ class VsphereVcenter(object):
                                       max_parallel=max_parallel_tasks,
                                       timeout_secs=len(vm_names) * 600)
 
-  def find_datastore_paths(self, pattern, vim_datastore):
+  def find_datastore_paths(self, pattern, vim_datastore, recursive=False):
     """
     Find paths in a datastore that matches the provided pattern.
 
     Args:
-      pattern: (str) pattern to match. Example: __curie_goldimage*
-      vim_datastore: (vim_datastore object) Datastore to search
+      pattern (str): Pattern to match. Example: __curie_goldimage*
+      vim_datastore (vim_datastore object): Datastore to search.
+      recursive (bool): If true, also search subfolders.
 
-    Returns: (list) of paths in the datastore
-
+    Returns: (list) of paths in the datastore.
     """
     spec = vim.host.DatastoreBrowser.SearchSpec(
       query=[vim.host.DatastoreBrowser.FolderQuery()],
       matchPattern=pattern)
+    if recursive:
+      task = vim_datastore.browser.SearchSubFolders(
+        "[%s]" % vim_datastore.name, spec)
+      WaitForTask(task)
+      search_results = task.info.result
+    else:
+      task = vim_datastore.browser.Search("[%s]" % vim_datastore.name, spec)
+      WaitForTask(task)
+      search_results = [task.info.result]
 
-    task = vim_datastore.browser.SearchSubFolders("[%s]" % vim_datastore.name,
-                                                  spec)
-    WaitForTask(task)
     paths = []
-    for fileinfo in task.info.result:
-      for fileinfo in fileinfo.file:
-        paths.append(fileinfo.path)
+    for search_result in search_results:
+      for fileinfo in search_result.file:
+        paths.append(search_result.folderPath + fileinfo.path)
     return paths
 
-  def delete_datastore_folder_path(self, folder_path, vim_datastore,
-                                   vim_datacenter):
+  def delete_datastore_folder_path(self, folder_path, vim_datacenter):
     fm = self.__si.content.fileManager
     delete_path_func = partial(fm.DeleteDatastoreFile_Task,
-                               name="[%s] %s" % (
-                               vim_datastore.name, folder_path),
+                               name=folder_path,
                                datacenter=vim_datacenter)
 
-    pre_task_msg = "Deleting directory %s from %s" % (folder_path,
-                                                      vim_datastore.name)
-    post_task_msg = "Deleted directory %s from %s" % (folder_path,
-                                                      vim_datastore.name)
+    pre_task_msg = "Deleting '%s'" % folder_path
+    post_task_msg = "Deleted '%s'" % folder_path
     task_desc = VsphereTaskDescriptor(pre_task_msg=pre_task_msg,
                                       post_task_msg=post_task_msg,
                                       create_task_func=delete_path_func)

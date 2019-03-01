@@ -51,7 +51,7 @@ class TestParameterFile(unittest.TestCase):
       "ioengine=libaio\n"
       "direct=1\n"
       "bs=1m\n"
-      "iodepth=128\n"
+      "iodepth=4\n"
       "rw=write\n"
       "\n"
       "[db-oltp1]\n"

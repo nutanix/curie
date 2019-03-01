@@ -49,4 +49,4 @@ RUN pip install -r requirements-dev.txt
 
 RUN yum install -y epel-release
 RUN yum install -y krb5-workstation gssntlmssp
-RUN yum install -y https://github.com/PowerShell/PowerShell/releases/download/v6.0.2/powershell-6.0.2-1.rhel.7.x86_64.rpm
+RUN yum install -y https://github.com/PowerShell/PowerShell/releases/download/v6.1.0/powershell-6.1.0-1.rhel.7.x86_64.rpm

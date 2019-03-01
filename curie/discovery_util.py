@@ -19,7 +19,7 @@ from pywbem import WBEMConnection
 from curie.acropolis_cluster import AcropolisCluster
 from curie.curie_error_pb2 import CurieError
 from curie.curie_types_pb2 import LogicalNetwork
-from curie.exception import CurieException
+from curie.exception import CurieException, CurieTestException
 from curie.node import get_power_management_util
 from curie.nutanix_rest_api_client import NutanixRestApiClient
 from curie.nutanix_rest_api_client import PrismAPIVersions
@@ -563,9 +563,12 @@ class DiscoveryUtil(object):
         with vmm_client:
           vms = vmm_client.get_vms(cluster_name=vmm_info.vmm_cluster_name)
           for vm in vms:
-            if vmm_client.is_nutanix_cvm(vm):
-              log.debug("Found CVM: %s", vm)
-              cvm_addresses.extend(vm["ips"])
+            if VmmClient.is_nutanix_cvm(vm):
+              if (VmmClient.is_powered_on(vm)):
+                log.debug("Found CVM '%s' with IPs: %s", vm["name"], vm["ips"])
+                cvm_addresses.extend(vm["ips"])
+              else:
+                log.debug("Skipping CVM '%s' because it is not powered on.", vm["name"])
       else:
         node_ids = [node.id for node in cluster_pb.cluster_nodes]
         # NB: We currently have an asymmetrical input for Prism credentials
@@ -592,10 +595,11 @@ class DiscoveryUtil(object):
               else:
                 log.debug("Skipping CVM '%s'; Host '%s' is not in the "
                           "metadata" % (vim_cvm.name, vim_host.name))
+      # We run Nutanix API only against powered on CMVs
       for cvm_address in cvm_addresses:
         client = NutanixRestApiClient(cvm_address, prism_user, prism_password)
         try:
-          cluster_json = client.clusters_get(cluster_id=c_uuid)
+          cluster_json = client.clusters_get(cluster_id=c_uuid, max_retries=3)
         except CurieException:
           log.warning("Unable to query CVM with IP '%s'",
                       cvm_address, exc_info=True)
@@ -842,6 +846,17 @@ class DiscoveryUtil(object):
         will be updated to include 'CE' in the string.
     """
     hyp_version = host.get("hypervisorFullName", "")
+    if not hyp_version:
+      raise CurieTestException(
+        cause=
+        "Cannot get hypervisor name from node: %s."
+        % host.get("name", "Unknown"),
+        impact=
+        "Cannot run discovery on cluster.",
+        corrective_action=
+        "Please check that all of the nodes in the cluster metadata "
+        "are powered on and running in normal state."
+      )
     # CE only applicable for AHV clusters and hence we don't need to check
     # for CE in other discovery methods.
     if (host.get(DiscoveryUtil.CE_HOST_ATTR_KEY) ==

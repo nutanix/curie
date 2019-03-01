@@ -18,60 +18,35 @@ from curie.nutanix_rest_api_client import REST_API_MAX_RETRIES
 class TestPrismAPIVersions(unittest.TestCase):
   VALID_AOS_VERSION = ("el7.3-release-euphrates-5.5-stable-"
                        "cbd9acfdebb3c7fd70ff2b4c4061515daadb50b1")
-  VALID_AOS_VERSION_OUTDATED = (
-    "el6-release-congo-3.0-stable-ee1b1aab1ac3a630694d9fd45ac1c6b91c1d3dd5")
   VALID_AOS_SHORT_VERSION = "5.5"
-  VALID_AOS_SHORT_VERSION_OUTDATED = "3.0"
-
+  VALID_AOS_MASTER_VERSION = ("el7.3-release-master-"
+                              "7694ae6156aeb25f781afc905abd4c6bb5f81f8b")
+  VALID_AOS_MASTER_SHORT_VERSION = "master-7694ae"
   VALID_AOS_CE_VERSION = ("el6-release-ce-2017.02.23-stable-"
                           "4d4e6fd77654bcfee2893f571830a031cb7517d4")
-  VALID_AOS_CE_VERSION_OUTDATED = ("el6-release-ce-2015.02.23-stable-"
-                                   "4d4e6fd77654bcfee2893f571830a031cb7517d4")
   VALID_AOS_CE_SHORT_VERSION = "2017.02.23"
-  VALID_AOS_CE_SHORT_VERSION_OUTDATED = "2012.02.23"
 
-  def test_prism_api_version(self):
-    self.assertTrue(PrismAPIVersions.is_applicable(PrismAPIVersions.PRISM_V1,
-                    "ANY_VERSION_HERE"))
-
-  def test_valid_aos_version(self):
-    valid = PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1,
-                                           self.VALID_AOS_VERSION)
-    self.assertTrue(valid)
-
-    valid = PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1,
-                                           self.VALID_AOS_SHORT_VERSION)
-    self.assertTrue(valid)
-
-  def test_valid_ce_version(self):
-    valid = PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1,
-                                           self.VALID_AOS_CE_VERSION)
-    self.assertTrue(valid)
-
-  def test_genesis_version_parse_failure(self):
-    valid = PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1,
-                                           "releasece-201702.23-stable")
-    self.assertFalse(valid)
-
-  def test_ce_version_too_low(self):
-    valid = PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1,
-                                           self.VALID_AOS_CE_VERSION_OUTDATED)
-    self.assertFalse(valid)
-
-  def test_aos_version_too_low(self):
-    valid = PrismAPIVersions.is_applicable(
-      PrismAPIVersions.GENESIS_V1, self.VALID_AOS_VERSION_OUTDATED)
-    self.assertFalse(valid)
-
-  def test_invalid_api(self):
-    self.assertFalse(PrismAPIVersions.is_applicable("BadAPI", "DoesntMatter"))
-
-  def test_get_aos_short_version(self):
-    for version_string in [self.VALID_AOS_VERSION,
-                           self.VALID_AOS_SHORT_VERSION]:
-      short_version = PrismAPIVersions.get_aos_short_version(version_string)
+  def test_get_aos_version(self):
+      short_version = PrismAPIVersions.get_aos_short_version(
+        self.VALID_AOS_VERSION)
       self.assertEqual(short_version, self.VALID_AOS_SHORT_VERSION)
 
+  def test_get_aos_short_version(self):
+      short_version = PrismAPIVersions.get_aos_short_version(
+        self.VALID_AOS_SHORT_VERSION)
+      self.assertEqual(short_version, self.VALID_AOS_SHORT_VERSION)
+
+  def test_get_ce_version(self):
+    short_version = PrismAPIVersions.get_aos_short_version(
+      self.VALID_AOS_CE_VERSION)
+    self.assertEqual(short_version, self.VALID_AOS_CE_SHORT_VERSION)
+
+  def test_get_master_version(self):
+    short_version = PrismAPIVersions.get_aos_short_version(
+      self.VALID_AOS_MASTER_VERSION)
+    self.assertEqual(short_version, self.VALID_AOS_MASTER_SHORT_VERSION)
+
+  def test_get_invalid_aos_version(self):
     short_version = PrismAPIVersions.get_aos_short_version("Invalid Version")
     self.assertEqual(short_version, "Unknown")
 
@@ -327,4 +302,18 @@ class TestNutanixRestApiClient(unittest.TestCase):
         "Cluster is running a 5.5 version which is incompatible with X-Ray "
         "when connected to Prism Central. Please upgrade AOS to 5.5.0.2 or "
         "newer, or disconnect Prism Central."))
+
+  @mock.patch(
+    "curie.nutanix_rest_api_client.NutanixRestApiClient.get_pc_uuid")
+  @mock.patch(
+    "curie.nutanix_rest_api_client.NutanixRestApiClient.get_nutanix_metadata")
+  def test_get_pc_uuid_header_master_version(self,
+                                             get_nutanix_metadata,
+                                             get_pc_uuid,
+                                             **kwargs):
+    get_nutanix_metadata.return_value = NutanixMetadata(
+      version=TestPrismAPIVersions.VALID_AOS_MASTER_VERSION)
+    client = NutanixRestApiClient(self.HOSTS[0], "user", "password")
+    header = client._get_pc_uuid_header()
+    self.assertEqual(header, {})
 

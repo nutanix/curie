@@ -41,9 +41,6 @@ class ClusterCheck(Scenario):
           self, node_index=node.node_index()), Phase.RUN)
 
     # Node stuff.
-    for node in nodes:
-      self.add_step(check.HypervisorConnectivity(
-        self, node_index=node.node_index()), Phase.RUN)
     if include_vsphere_checks:
       vcenter_info = self.cluster.metadata().cluster_management_server_info.vcenter_info
       datastore_name = vcenter_info.vcenter_datastore_name

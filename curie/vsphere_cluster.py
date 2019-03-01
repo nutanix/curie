@@ -118,6 +118,7 @@ class VsphereCluster(Cluster):
       vcenter.fill_cluster_metadata(vim_cluster,
                                     self._metadata,
                                     include_reporting_fields)
+      vcenter.match_node_metadata_to_vcenter(vim_cluster, self._metadata)
 
       if (self._metadata.cluster_software_info.HasField("vsan_info") or
           self._metadata.cluster_software_info.HasField("generic_info")):
@@ -760,7 +761,7 @@ class VsphereCluster(Cluster):
       self._lookup_vim_objects(vcenter)
     paths = vcenter.find_datastore_paths("__curie_goldimage*", vim_datastore)
     for path in paths:
-      vcenter.delete_datastore_folder_path(path, vim_datastore, vim_datacenter)
+      vcenter.delete_datastore_folder_path(path, vim_datacenter)
 
   def __vms_internal(self, vcenter, vm_names=None):
     "Returns all VMs on the cluster."

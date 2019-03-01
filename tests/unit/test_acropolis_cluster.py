@@ -62,8 +62,6 @@ class TestAcropolisCluster(unittest.TestCase):
       self.cluster_metadata.cluster_management_server_info.prism_info
     prism_info.prism_host = "fake-prism-host.fake.address"
     prism_info.prism_cluster_id = "fake-cluster-id"
-    prism_info.prism_host = "fake-prism-host.fake.address"
-    prism_info.prism_cluster_id = "fake-cluster-id"
 
   def tearDown(self):
     pass

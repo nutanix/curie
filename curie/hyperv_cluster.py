@@ -764,11 +764,14 @@ class HyperVCluster(Cluster):
           vmm=vmm_client, task_descriptors=[task_desc], max_parallel=1,
           timeout_secs=900)
 
+        target_dir = NameUtil.library_server_target_path(self.cluster_name)
+
         task_desc = HypervTaskDescriptor(
           pre_task_msg="Converting VM '%s' to a template" % template_name,
           post_task_msg="Converted VM '%s' to a template" % template_name,
           create_task_func=vmm_client.convert_to_template,
           task_func_kwargs={"cluster_name": self.cluster_name,
+                            "target_dir": target_dir,
                             "template_name": template_name})
         HypervTaskPoller.execute_parallel_tasks(
           vmm=vmm_client, task_descriptors=[task_desc], max_parallel=1,
@@ -974,6 +977,8 @@ class HyperVCluster(Cluster):
     # Set first IP from list
     if json_vm["ips"].__len__() != 0:
       vm_params.vm_ip = json_vm["ips"][0]
+    if(NameUtil.is_hyperv_cvm_vm(vm_params.vm_name)):
+      vm_params.is_cvm = True
 
     # if curie_guest_os_type_value is None:
     #   return HyperVVm(vm_params,json_vm)

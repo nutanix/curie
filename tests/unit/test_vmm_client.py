@@ -362,11 +362,13 @@ class TestVmmClient(unittest.TestCase):
     self.vmm_client.library_server_share_path = "/fake/library/share/path"
     with mock.patch.object(self.vmm_client, "ps_client") as m_ps_client:
       self.vmm_client.convert_to_template(cluster_name="Fake Cluster",
+                                          target_dir="fake_target_dir",
                                           template_name="fake_template")
 
     m_ps_client.execute.assert_called_once_with(
       "ConvertTo-Template", cluster_name="Fake Cluster",
-      json_params="{\"template_name\": \"fake_template\", "
+      json_params="{\"target_dir\": \"fake_target_dir\", "
+                  "\"template_name\": \"fake_template\", "
                   "\"vmm_library_server_share\": \"/fake/library/share/path\"}")
 
   def test_migrate_vm(self):

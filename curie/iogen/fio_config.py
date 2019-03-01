@@ -16,7 +16,7 @@ class FioConfiguration(collections.OrderedDict):
   Manage an FIO configuration file.
   """
 
-  DEFAULT_IODEPTH_PER_NODE = 128
+  DEFAULT_IODEPTH_PER_NODE = 4
 
   section_re = re.compile(r"\[(.+)\]")  # Text surrounded by square brackets.
   prefill_defaults = "\n".join(["[global]",

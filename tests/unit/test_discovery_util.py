@@ -11,7 +11,7 @@ import mock
 from curie.curie_error_pb2 import CurieError
 from curie.curie_server_state_pb2 import CurieSettings
 from curie.discovery_util import DiscoveryUtil
-from curie.exception import CurieException
+from curie.exception import CurieException, CurieTestException
 from curie.ipmi_util import IpmiUtil
 from curie.proto_util import proto_patch_encryption_support
 from curie.util import CurieUtil
@@ -167,6 +167,23 @@ class TestCurieDiscoveryUtil(unittest.TestCase):
       DiscoveryUtil._get_hyp_version_for_host(host),
       "Nutanix 20170726.42")
 
+  def test__get_hyp_version_for_host_empty_host(self):
+    host = {"name": '1.1.1.1',
+            "hypervisorFullName": None}
+    with self.assertRaises(CurieTestException) as ar:
+      DiscoveryUtil._get_hyp_version_for_host(host)
+
+    self.assertIn("Cause: Cannot get hypervisor name from node: 1.1.1.1.",
+                   str(ar.exception))
+
+  def test__get_hyp_version_for_host_empty_host_no_name(self):
+    host = {"hypervisorFullName": None}
+    with self.assertRaises(CurieTestException) as ar:
+      DiscoveryUtil._get_hyp_version_for_host(host)
+
+    self.assertIn("Cause: Cannot get hypervisor name from node: Unknown",
+                   str(ar.exception))
+
   @mock.patch("curie.discovery_util.NutanixRestApiClient")
   @mock.patch("curie.discovery_util.VmmClient")
   def test__update_cluster_version_info_vmm(self, m_VmmClient, n_NtnxApiCli):
@@ -229,4 +246,45 @@ class TestCurieDiscoveryUtil(unittest.TestCase):
       "4.1.0.1")
     self.assertEqual(cluster_pb.cluster_hypervisor_info.hyperv_info.version,
                      ["10.0.14393.351", "10.0.14393.351", "10.0.14393.351"])
+
+  @mock.patch("curie.discovery_util.NutanixRestApiClient")
+  def test_update_virtual_ip_prism(self, m_NutanixRestApiClient):
+    m_client = mock.MagicMock()
+    m_client.clusters_get.return_value = {
+      "name": "Mock-Cluster",
+      "clusterExternalIPAddress": "1.2.3.4",
+    }
+    m_NutanixRestApiClient.from_proto.return_value = m_client
+    cluster_pb = proto_patch_encryption_support(CurieSettings.Cluster)()
+    mgmt_info = cluster_pb.cluster_management_server_info
+    mgmt_info.prism_info.SetInParent()
+    software_info = cluster_pb.cluster_software_info
+    software_info.nutanix_info.SetInParent()
+
+    self.assertEqual("",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    DiscoveryUtil.update_cluster_virtual_ip(cluster_pb)
+    self.assertEqual("1.2.3.4",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+
+  @mock.patch("curie.discovery_util.NutanixRestApiClient")
+  def test_update_virtual_ip_prism_already_set(self, m_NutanixRestApiClient):
+    m_client = mock.MagicMock()
+    m_client.clusters_get.return_value = {
+      "name": "Mock-Cluster",
+      "clusterExternalIPAddress": "1.2.3.4",
+    }
+    m_NutanixRestApiClient.from_proto.return_value = m_client
+    cluster_pb = proto_patch_encryption_support(CurieSettings.Cluster)()
+    mgmt_info = cluster_pb.cluster_management_server_info
+    mgmt_info.prism_info.SetInParent()
+    software_info = cluster_pb.cluster_software_info
+    software_info.nutanix_info.SetInParent()
+    cluster_pb.cluster_software_info.nutanix_info.prism_host = "5.5.5.5"
+
+    self.assertEqual("5.5.5.5",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    DiscoveryUtil.update_cluster_virtual_ip(cluster_pb)
+    self.assertEqual("1.2.3.4",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
 

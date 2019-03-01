@@ -1,6 +1,6 @@
 [global]
 bs=1M
-iodepth=64
+iodepth=4
 rw=write
 ioengine=libaio
 direct=1

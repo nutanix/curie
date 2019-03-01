@@ -68,7 +68,7 @@ vms:
       ram_mb: 4096
       data_disks:
         count: 6
-        size: 32
+        size: 512
       nodes: 1,2
       count_per_node: 1
 

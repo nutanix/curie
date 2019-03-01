@@ -136,6 +136,13 @@ class NameUtil(object):
     return False
 
   @staticmethod
+  def is_hyperv_cvm_vm(vm_name):
+    test_entity_name_pat = re.compile("^NTNX-[0-9]*-[A-Z]-CVM")
+    if(test_entity_name_pat.search(vm_name)):
+      return True
+    return False
+
+  @staticmethod
   def _filter_test_entity_names(entity_names, test_ids, prefix):
     """
     Given the list of entity names 'entity_names', return a tuple where the

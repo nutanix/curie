@@ -156,21 +156,15 @@ class PrismAPIVersions(object):
   # response to any breaking changes in later Nutanix releases.
   GENESIS_V1 = "Genesis REST to RPC v1"
 
-  # Minimum product versions as tuples.
-  MIN_AOS_VERSION = (4, 0, 0, 0)
-  MIN_CE_VERSION = (2016, 12, 22)
-
   # Regex to extract version number from a full or short AOS version string.
   # E.g.:
   # el7-release-euphrates-5.0.2-stable-9d20638eb2ba1d3f84f213d5976fbcd412630c6d
+  # el7.3-release-master-7694ae6156aeb25f781afc905abd4c6bb5f81f8b
   # Or
   # 5.0.2
-  _optional_prefixes = r"(?:el[0-9.]+(?<!\.)-)?(?:[a-zA-Z]+-){0,2}"
-  _optional_suffixes = r"(?:[a-zA-Z]+-)?(?:[a-fA-F0-9]{40}\Z)?"
-  _require_major_minor_opt_sub_versions = r"((?:[0-9]\.)+[0-9])(?:-|\Z)"
-  AOS_VERSION_REGEX = re.compile(
-    r"%s%s%s" % (_optional_prefixes, _require_major_minor_opt_sub_versions,
-                 _optional_suffixes))
+  AOS_SHORT_VERSION_REGEX = re.compile(r"^((?:[0-9]+\.)+[0-9]+)$")
+  AOS_VERSION_REGEX = re.compile(r"(?:el[0-9.]+(?<!\.)-)?(?:[a-zA-Z]+-){0,2}"
+    r"((?:[0-9]+\.)+[0-9]+|master)-(?:[a-zA-Z]+-)?([a-fA-F0-9]{40})?")
 
   # Set of HTTP status codes indicating the server has requested we
   # retry a method. These retries should happen whether or not the method is
@@ -179,49 +173,25 @@ class PrismAPIVersions(object):
 
   @classmethod
   def get_aos_short_version(cls, version_string):
-    try:
-      version_capture = cls.AOS_VERSION_REGEX.findall(version_string)
-      if version_capture:
-        assert len(version_capture) == 1, version_capture
-        return version_capture[0]
-      return version_string.split("-")[3]
-    except Exception:
+    """
+    Returns the short version (5.0.2) of an AOS version string
+    (el7-release-euphrates-5.0.2-stable-...).
+
+    Args:
+      version_string (str): Version string to find the short version string
+    """
+    match = cls.AOS_VERSION_REGEX.match(version_string)
+    if match:
+      version = match.group(1)
+      if version == "master":
+        version = "master-%s" % match.group(2)[0:6]
+      return version
+    elif cls.AOS_SHORT_VERSION_REGEX.match(version_string):
+      return version_string
+    else:
       log.exception("Could not extract short version from string '%s'",
                     version_string)
       return "Unknown"
-
-  @classmethod
-  def is_applicable(cls, api, version):
-    """
-    Args:
-      api (PrismAPIVersions version): API whose compatibility to check.
-      version (str): Nutanix version or fullversion string.
-    Returns:
-      (bool) Whether 'api' is valid for Nutanix release 'version'.
-    """
-    if api == cls.PRISM_V1:
-      return True
-    elif api == cls.GENESIS_V1:
-      product = "aos"
-      try:
-        version_capture = cls.AOS_VERSION_REGEX.findall(version)
-        if version_capture:
-          assert len(version_capture) == 1, version_capture
-          version_string = version_capture[0]
-        else:
-          product = version.split("-")[2]
-          version_string = version.split("-")[3]
-      except Exception:
-        log.exception("Could not determine API version from version string %s",
-                      version)
-        return False
-      version_tuple = tuple(map(int, version_string.split('.')))
-      if product == "ce":
-        return version_tuple >= cls.MIN_CE_VERSION
-      return version_tuple >= cls.MIN_AOS_VERSION
-    else:
-      log.error("Unknown api version to check: %s", api)
-    return False
 
 
 class HttpRequestException(Exception):
@@ -444,7 +414,8 @@ class NutanixRestApiClient(object):
   @nutanix_rest_api_method
   @validate_parameter("projection", str, _VALID_PROJ_MAP["clusters_get"])
   def clusters_get(self, projection=None,
-                   cluster_id=None, cluster_name=None):
+                   cluster_id=None, cluster_name=None,
+                   max_retries=REST_API_MAX_RETRIES):
     """
     Invokes /clusters [GET] to get cluster information for all clusters, or
     /containers/{id} [GET] to get information about a specific cluster.
@@ -474,7 +445,7 @@ class NutanixRestApiClient(object):
     params = {}
     if projection:
       params["projection"] = projection
-    return self.__get(url, url_params=params)
+    return self.__get(url, url_params=params, max_retries=max_retries)
 
   @nutanix_rest_api_method
   def get_pc_uuid(self):
@@ -900,13 +871,6 @@ class NutanixRestApiClient(object):
     using the protection domain 'pd_name'. This oob_schedule is defaulted to
     take a snapshot immediately.
     """
-    pd = self.__get_entity_by_key(self.protection_domains_get, "name",
-                                  pd_name, raise_on_failure=True)
-    if len(pd["vms"]) <= 0:
-      error_code = CurieError.kInvalidParameter
-      error_msg = "No VMs exists in protection domain %s" % pd_name
-      raise CurieException(error_code, error_msg)
-
     url = "%s/protection_domains/%s/oob_schedules" % (self.__base_url, pd_name)
     try:
       self.__post(url, {}, max_retries=REST_API_MAX_RETRIES)
@@ -1534,13 +1498,8 @@ class NutanixRestApiClient(object):
     """
     Invokes /genesis to issue a 'ClusterManager.status' RPC to Genesis.
     """
-    # Verify that API is applicable to cluster, else abort.
-    version = self.get_nutanix_metadata().version
-    if PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1, version):
-      return self.__issue_genesis_rpc_v1("ClusterManager", "status",
-                                         max_retries=5)
-    raise CurieException(CurieError.kInternalError,
-                          "Unsupported Nutanix version '%s'" % version)
+    return self.__issue_genesis_rpc_v1("ClusterManager", "status",
+                                      max_retries=5)
 
   @nutanix_rest_api_method
   @validate_return(valid_func=lambda ret, self:
@@ -1550,13 +1509,8 @@ class NutanixRestApiClient(object):
     """
     Invokes /genesis to issue a 'NodeManager.services_status' RPC to Genesis.
     """
-    # Verify that API is applicable to cluster, else abort.
-    version = self.get_nutanix_metadata().version
-    if PrismAPIVersions.is_applicable(PrismAPIVersions.GENESIS_V1, version):
-      return self.__issue_genesis_rpc_v1("NodeManager", "services_status",
-                                         max_retries=5)
-    raise CurieException(CurieError.kInternalError,
-                          "Unsupported Nutanix version '%s'" % version)
+    return self.__issue_genesis_rpc_v1("NodeManager", "services_status",
+                                       max_retries=5)
 
   @nutanix_rest_api_method
   def genesis_current_master(self):
@@ -1889,7 +1843,12 @@ class NutanixRestApiClient(object):
     # Determine if the target is a 5.5 cluster and then add required header
     version = PrismAPIVersions.get_aos_short_version(
       self.get_nutanix_metadata().version)
-    nos_version = tuple(map(int, version.split('.')))
+    try:
+      nos_version = tuple(map(int, version.split('.')))
+    except ValueError:
+      log.debug("Version is not dot-delimited. Assuming header X-NTNX-PC-UUID "
+                "not required.")
+      return {}
     if (5, 5) <= nos_version < (5, 8):
       log.debug("Cluster has the version %s. Checking if registered to a "
                 "Prism Central", version)
@@ -2058,7 +2017,7 @@ class NutanixRestApiClient(object):
           service, method, svm_ip=svm_ip, method_kwargs=method_kwargs,
           max_retries=max_retries - 1, retry_delay_secs=retry_delay_secs)
       raise CurieException(CurieError.kClusterApiError,
-                            "Failed to issue Genesis RPC. Retries exhaused")
+                            "Failed to issue Genesis RPC. Retries exhausted")
 
     ret = value_section[".return"]
     # Error or warning conditions may be returned in a dict.

@@ -189,22 +189,15 @@ class TestHyperVCluster(unittest.TestCase):
       }),
     ])
 
-  def __mocked_request_head(*args, **kwargs):
-    class MockResponse:
-      status_code = 200
-      elapsed = 1
-      def raise_for_status(self):
-        pass
-
-    if args[0] == 'http://169.254.1.2:5001':
-      raise requests.exceptions.RequestException("Not accessible!")
-
-    return MockResponse()
-
-  @mock.patch('requests.head', side_effect=__mocked_request_head)
   @mock.patch("curie.hyperv_cluster.VmmClient")
+  @mock.patch("curie.task.time")
+  @mock.patch("curie.task.TaskPoller.get_deadline_secs")
   def test_get_vms_after_vm_migration(
-      self, m_VmmClient, m_RequestsHead):
+      self, m_get_deadline_secs, m_time, m_VmmClient):
+    start_time = time.time()
+    m_time.time.side_effect = lambda: start_time + m_time.time.call_count
+    m_get_deadline_secs.side_effect = lambda x: start_time + 30
+
     m_vmm_client = m_VmmClient.return_value.__enter__.return_value
     m_vmm_client.get_vms.__name__ = "get_vms"
     m_vmm_client.vm_get_job_status.side_effect = [
@@ -300,12 +293,29 @@ class TestHyperVCluster(unittest.TestCase):
     ]
 
     cluster = HyperVCluster(self.cluster_metadata)
-    # First call to vms()
-    vms1 = cluster.vms()
-    # Call again to check if any VM was moved and try to detect new IP
-    vms2 = cluster.vms()
-    # Call again to check if new IP has already been assigned to the moved VM
-    vms3 = cluster.vms()
+
+    def __mocked_request_head(*args, **kwargs):
+      class MockResponse:
+        status_code = 200
+        elapsed = 1
+
+        def raise_for_status(self):
+          pass
+
+      if args[0] == 'http://169.254.1.2:5001':
+        raise requests.exceptions.RequestException("Not accessible!")
+
+      return MockResponse()
+
+    with mock.patch("curie.unix_vm_mixin.requests.head",
+                    side_effect=__mocked_request_head) as m_RequestsHead:
+      # First call to vms()
+      vms1 = cluster.vms()
+      # Call again to check if any VM was moved and try to detect new IP
+      vms2 = cluster.vms()
+      # Call again to check if new IP has already been assigned to the moved VM
+      vms3 = cluster.vms()
+
     self.assertEqual(len(vms1), 2)
     self.assertEqual(len(vms2), 2)
     self.assertEqual(len(vms3), 2)
@@ -316,6 +326,7 @@ class TestHyperVCluster(unittest.TestCase):
     self.assertEqual(vms2[1].node_id(), "fake_node_2")
     self.assertEqual(vms3[1].node_id(), "fake_node_2")
     self.assertEqual(m_vmm_client.get_vms.call_count, 5)
+    self.assertEqual(2, m_RequestsHead.call_count)
 
 
   @mock.patch("curie.hyperv_cluster.VmmClient")
@@ -1860,7 +1871,7 @@ class TestHyperVCluster(unittest.TestCase):
       vm_datastore_path="\\\\fake\\path\\to\\fake_share_name"
     )
     m_vmm_client.convert_to_template.assert_called_once_with(
-      cluster_name="fake_cluster", template_name="Fake _temp_ Source VM 0"
+      cluster_name="fake_cluster", target_dir="__curie_fake_cluster", template_name="Fake _temp_ Source VM 0"
     )
     m_vmm_client.create_vm.assert_has_calls([
       mock.call(cluster_name="fake_cluster",

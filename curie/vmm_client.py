@@ -9,6 +9,7 @@ import gflags
 from curie import powershell
 from curie.exception import CurieTestException
 from curie.log import patch_trace
+from curie.name_util import NameUtil
 
 log = logging.getLogger(__name__)
 patch_trace()
@@ -52,8 +53,15 @@ class VmmClient(object):
 
   @staticmethod
   def is_nutanix_cvm(vm):
-    vm_name = vm.get("name", "")
-    return vm_name.startswith("NTNX-") and vm_name.endswith("-CVM")
+    vm_name = vm["name"]
+    return NameUtil.is_hyperv_cvm_vm(vm_name)
+
+  @staticmethod
+  def is_powered_on(vm):
+    vm_status = vm["status"]
+    if vm_status == "Running":
+      return True
+    return False
 
   def get_clusters(self, cluster_name=None, cluster_type=None):
     """
@@ -252,8 +260,9 @@ class VmmClient(object):
       json_params=json.dumps(params, sort_keys=True),
       overwriteFiles=False).as_ps_task()]
 
-  def convert_to_template(self, cluster_name, template_name):
+  def convert_to_template(self, cluster_name, target_dir, template_name):
     params = {"vmm_library_server_share": self.library_server_share_path,
+              "target_dir": target_dir,
               "template_name": template_name}
     return self.ps_client.execute(
       "ConvertTo-Template", cluster_name=cluster_name,

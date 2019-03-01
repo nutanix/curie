@@ -4,6 +4,7 @@
 #
 
 from curie.vm import Vm
+from curie.vmm_client import VmmClient
 
 
 class HyperVVm(Vm):
@@ -13,7 +14,4 @@ class HyperVVm(Vm):
     super(HyperVVm, self).__init__(vm_params)
 
   def is_powered_on(self):
-    status = self._json_vm["status"]
-    if status == "Running":
-      return True
-    return False
+    return VmmClient.is_powered_on(self._json_vm)

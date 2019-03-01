@@ -57,8 +57,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=8)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # There are 4 nodes and 4 VMs, iodepth is 128.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=128)
+      # There are 4 nodes and 4 VMs, iodepth is 4.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=4)
 
   def test_workload_prefill_concurrent_4_node_limited_by_parameter(self):
     workload = Workload.parse(self.scenario, "test_workload1",
@@ -69,8 +69,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=2)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # Only 2 concurrent but each has own node, so iodepth is 128.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=128)
+      # Only 2 concurrent but each has own node, so iodepth is 4.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=4)
 
   def test_workload_prefill_concurrent_2_node_limited_by_3_vms(self):
     self.cluster.nodes.return_value = self.nodes[:2]
@@ -85,8 +85,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=8)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # There are 2 nodes and 3 VMs, iodepth is 64.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=64)
+      # There are 2 nodes and 3 VMs, iodepth is 2.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=2)
 
   def test_workload_prefill_concurrent_2_node_limited_by_4_vms(self):
     self.cluster.nodes.return_value = self.nodes[:2]
@@ -101,8 +101,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=8)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # There are 2 nodes and 4 VMs, iodepth is 64.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=64)
+      # There are 2 nodes and 4 VMs, iodepth is 2.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=2)
 
   def test_workload_prefill_concurrent_2_node_limited_by_3_concurrent(self):
     self.cluster.nodes.return_value = self.nodes[:2]
@@ -117,8 +117,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=3)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # 3 concurrent on 2 nodes, so iodepth is 64.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=64)
+      # 3 concurrent on 2 nodes, so iodepth is 2.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=2)
 
   def test_workload_prefill_concurrent_2_node_limited_by_4_concurrent(self):
     self.cluster.nodes.return_value = self.nodes[:2]
@@ -133,8 +133,8 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=4)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # 3 concurrent on 2 nodes, so iodepth is 64.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=64)
+      # 3 concurrent on 2 nodes, so iodepth is 2.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=2)
 
   def test_workload_prefill_concurrent_1_node_limited_by_3_concurrent(self):
     self.cluster.nodes.return_value = self.nodes[:1]
@@ -149,5 +149,5 @@ class TestWorkload(unittest.TestCase):
       mock_fio_config.load.return_value = mock_config_instance
       workload.prefill_iogen(max_concurrent=3)
       self.assertEqual(mock_fio_config.load.call_count, 1)
-      # 3 concurrent on 1 node, so iodepth is 128/3 or 42.
-      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=42)
+      # 3 concurrent on 1 node, so iodepth is 4/3 or 1.
+      mock_config_instance.convert_prefill.assert_called_once_with(iodepth=1)
