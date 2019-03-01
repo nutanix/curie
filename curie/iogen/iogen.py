@@ -320,7 +320,11 @@ class IOGen(object):
     pool = ThreadPool(max_running)
     scramble_vms = vms[:]
     random.shuffle(scramble_vms)
-    return pool.map(run_workload, scramble_vms)
+    try:
+      return pool.map(run_workload, scramble_vms)
+    finally:
+      # https://bugs.python.org/issue34172
+      pool.terminate()
 
   def fetch_remote_results(self, vms):
     """
@@ -389,26 +393,30 @@ class IOGen(object):
     """
     self.__create_remote_output_dir(vms, self._remote_results_path)
     transfer_pool = ThreadPool(max_concurrent_transfers)
-    result_tuples = []
-    transfer_timeout_secs = 120
-    for vm, local_config_path in zip(vms, local_config_paths):
-      async_result = transfer_pool.apply_async(
-        vm.transfer_to,
-        (local_config_path, self._remote_config_path, transfer_timeout_secs))
-      result_tuples.append((vm, async_result))
-    for vm, async_result in result_tuples:
-      try:
-        result = async_result.get(transfer_timeout_secs)
-      except multiprocessing.TimeoutError as err:
-        raise CurieTestException(
-          "Timeout waiting for response from vm.transfer_to (%s, %s)" %
-          (vm, err))
-      else:
-        if not result:
-          msg = ("Failed to prepare %s for workload generator %s" %
-                 (vm.vm_name(), self._name))
-          log.warning(msg)
-          raise CurieTestException(msg)
+    try:
+      result_tuples = []
+      transfer_timeout_secs = 120
+      for vm, local_config_path in zip(vms, local_config_paths):
+        async_result = transfer_pool.apply_async(
+          vm.transfer_to,
+          (local_config_path, self._remote_config_path, transfer_timeout_secs))
+        result_tuples.append((vm, async_result))
+      for vm, async_result in result_tuples:
+        try:
+          result = async_result.get(transfer_timeout_secs)
+        except multiprocessing.TimeoutError as err:
+          raise CurieTestException(
+            "Timeout waiting for response from vm.transfer_to (%s, %s)" %
+            (vm, err))
+        else:
+          if not result:
+            msg = ("Failed to prepare %s for workload generator %s" %
+                   (vm.vm_name(), self._name))
+            log.warning(msg)
+            raise CurieTestException(msg)
+    finally:
+      # https://bugs.python.org/issue34172
+      transfer_pool.terminate()
     command_ids = ["sync_%d_%d" % (int(time.time()), index)
                    for index in xrange(len(vms))]
     for command_id, vm in zip(command_ids, vms):

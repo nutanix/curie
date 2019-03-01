@@ -31,3 +31,12 @@ class TestNameUtil(unittest.TestCase):
     vm_name = NameUtil.goldimage_vm_name(mock_test, "ubuntu1604")
     expected = "%s_1234_ubuntu1604" % CURIE_GOLDIMAGE_VM_NAME_PREFIX
     self.assertEqual(vm_name, expected)
+
+  def test_is_hyperv_cvm_vm(self):
+    self.assertTrue(NameUtil.is_hyperv_cvm_vm("NTNX-18SM6F380322-D-CVM"))
+    self.assertTrue(NameUtil.is_hyperv_cvm_vm("NTNX-ZZZZZZZZZZZZ-ZZZ-CVM"))
+    self.assertTrue(NameUtil.is_hyperv_cvm_vm("NTNX-0-A-CVM"))
+    self.assertFalse(NameUtil.is_hyperv_cvm_vm("NTNX-18SM6F380322-D"))
+    self.assertFalse(NameUtil.is_hyperv_cvm_vm("18SM6F380322-D-CVM"))
+    self.assertFalse(NameUtil.is_hyperv_cvm_vm(""))
+    self.assertFalse(NameUtil.is_hyperv_cvm_vm("NTNX-WHATEVER"))

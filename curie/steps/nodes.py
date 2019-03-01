@@ -125,7 +125,11 @@ class PowerOff(_PowerOp):
     """
     power_management_utils = self.node_power_management_utils()
     pool = ThreadPool(len(power_management_utils))
-    pool.map(self.__power_off, power_management_utils)
+    try:
+      pool.map(self.__power_off, power_management_utils)
+    finally:
+      # https://bugs.python.org/issue34172
+      pool.terminate()
     if self.wait_secs > 0:
       wait_step = WaitForPowerOff(self.scenario, self.nodes_slice_str,
                                   self.wait_secs, annotate=self._annotate)
@@ -235,7 +239,11 @@ class PowerOn(_PowerOp):
     """
     power_management_utils = self.node_power_management_utils()
     pool = ThreadPool(len(power_management_utils))
-    pool.map(self.__power_on, power_management_utils)
+    try:
+      pool.map(self.__power_on, power_management_utils)
+    finally:
+      # https://bugs.python.org/issue34172
+      pool.terminate()
     if self.wait_secs > 0:
       wait_step = WaitForPowerOn(self.scenario, self.nodes_slice_str,
                                  self.wait_secs, annotate=self._annotate)
@@ -352,7 +360,11 @@ class Shutdown(_PowerOp):
         If timeout is reached without shutting down node.
     """
     pool = ThreadPool(len(self.nodes()))
-    pool.map(self.__shutdown, self.nodes())
+    try:
+      pool.map(self.__shutdown, self.nodes())
+    finally:
+      # https://bugs.python.org/issue34172
+      pool.terminate()
     if self.wait_secs > 0:
       wait_step = WaitForPowerOff(self.scenario, self.nodes_slice_str,
                                   self.wait_secs, annotate=self._annotate)

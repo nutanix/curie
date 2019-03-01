@@ -564,7 +564,7 @@ class DiscoveryUtil(object):
           vms = vmm_client.get_vms(cluster_name=vmm_info.vmm_cluster_name)
           for vm in vms:
             if VmmClient.is_nutanix_cvm(vm):
-              if (VmmClient.is_powered_on(vm)):
+              if VmmClient.is_powered_on(vm):
                 log.debug("Found CVM '%s' with IPs: %s", vm["name"], vm["ips"])
                 cvm_addresses.extend(vm["ips"])
               else:
@@ -595,19 +595,31 @@ class DiscoveryUtil(object):
               else:
                 log.debug("Skipping CVM '%s'; Host '%s' is not in the "
                           "metadata" % (vim_cvm.name, vim_host.name))
-      # We run Nutanix API only against powered on CMVs
+      # We run Nutanix API only against powered on CVMs.
+      if not cvm_addresses:
+        raise CurieTestException(
+          cause="No Nutanix CVMs found.",
+          impact="The cluster virtual IP address can not be discovered.",
+          corrective_action="Please verify that the cluster contains Nutanix "
+                            "CVMs, and that they are powered on.",
+        )
       for cvm_address in cvm_addresses:
         client = NutanixRestApiClient(cvm_address, prism_user, prism_password)
         try:
           cluster_json = client.clusters_get(cluster_id=c_uuid, max_retries=3)
-        except CurieException:
+        except BaseException:
           log.warning("Unable to query CVM with IP '%s'",
                       cvm_address, exc_info=True)
         else:
           break
       else:
-        log.error("Failed to query Prism for cluster metadata on any CVM")
-        return False
+        raise CurieTestException(
+          cause="Failed to query Prism on any Nutanix CVM.",
+          impact="The cluster virtual IP address can not be discovered.",
+          corrective_action="Please verify that the Nutanix CVMs on the "
+                            "cluster are powered on, and that the network "
+                            "connectivity to the CVMs is correct.",
+        )
 
     if "clusterExternalIPAddress" in cluster_json:
       cluster_name = cluster_json.get("name")

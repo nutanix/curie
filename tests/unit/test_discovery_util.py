@@ -268,6 +268,115 @@ class TestCurieDiscoveryUtil(unittest.TestCase):
                      cluster_pb.cluster_software_info.nutanix_info.prism_host)
 
   @mock.patch("curie.discovery_util.NutanixRestApiClient")
+  @mock.patch("curie.discovery_util.VmmClient")
+  def test_update_virtual_ip_vmm_cvms(self, m_VmmClient,
+                                      m_NutanixRestApiClient):
+    m_VmmClient.is_nutanix_cvm.side_effect = [False, True]
+    m_VmmClient.is_powered_on.side_effect = [True]
+    m_vmm_client = mock.MagicMock()
+    m_vmm_client.get_vms.return_value = [
+      {"name": "FAKE-VM-A", "ips": ["1.1.1.1"]},
+      {"name": "FAKE-CVM", "ips": ["1.1.1.2"]},
+    ]
+    m_VmmClient.return_value = m_vmm_client
+    m_nutanix_client = mock.MagicMock()
+    m_nutanix_client.clusters_get.return_value = {
+      "name": "Mock-Cluster",
+      "clusterExternalIPAddress": "1.2.3.4",
+    }
+    m_NutanixRestApiClient.return_value = m_nutanix_client
+    cluster_pb = proto_patch_encryption_support(CurieSettings.Cluster)()
+    mgmt_info = cluster_pb.cluster_management_server_info
+    mgmt_info.vmm_info.SetInParent()
+    software_info = cluster_pb.cluster_software_info
+    software_info.nutanix_info.SetInParent()
+    software_info.nutanix_info.prism_user = "fake_prism_user"
+    software_info.nutanix_info.prism_password = "fake_prism_password"
+
+    self.assertEqual("",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    DiscoveryUtil.update_cluster_virtual_ip(cluster_pb)
+    self.assertEqual("1.2.3.4",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    m_NutanixRestApiClient.assert_has_calls([
+      mock.call("1.1.1.2", "fake_prism_user", "fake_prism_password"),
+    ])
+
+  @mock.patch("curie.discovery_util.NutanixRestApiClient")
+  @mock.patch("curie.discovery_util.VmmClient")
+  def test_update_virtual_ip_vmm_no_cvms_found(
+      self, m_VmmClient, m_NutanixRestApiClient):
+    m_VmmClient.is_nutanix_cvm.side_effect = [False, False]
+    m_VmmClient.is_powered_on.side_effect = []
+    m_vmm_client = mock.MagicMock()
+    m_vmm_client.get_vms.return_value = [
+      {"name": "FAKE-VM-A", "ips": ["1.1.1.1"]},
+      {"name": "FAKE-ALSO-NOT-A-CVM", "ips": ["1.1.1.2"]},
+    ]
+    m_VmmClient.return_value = m_vmm_client
+    m_nutanix_client = mock.MagicMock()
+    m_nutanix_client.clusters_get.return_value = {
+      "name": "Mock-Cluster",
+      "clusterExternalIPAddress": "1.2.3.4",
+    }
+    m_NutanixRestApiClient.return_value = m_nutanix_client
+    cluster_pb = proto_patch_encryption_support(CurieSettings.Cluster)()
+    mgmt_info = cluster_pb.cluster_management_server_info
+    mgmt_info.vmm_info.SetInParent()
+    software_info = cluster_pb.cluster_software_info
+    software_info.nutanix_info.SetInParent()
+    software_info.nutanix_info.prism_user = "fake_prism_user"
+    software_info.nutanix_info.prism_password = "fake_prism_password"
+
+    self.assertEqual("",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    with self.assertRaises(CurieTestException) as ar:
+      DiscoveryUtil.update_cluster_virtual_ip(cluster_pb)
+    self.assertIn(
+      "Cause: No Nutanix CVMs found.\n\n"
+      "Impact: The cluster virtual IP address can not be discovered.\n\n"
+      "Corrective Action: Please verify that the cluster contains Nutanix "
+      "CVMs, and that they are powered on.\n\n"
+      "Traceback: None",
+      str(ar.exception))
+
+  @mock.patch("curie.discovery_util.NutanixRestApiClient")
+  @mock.patch("curie.discovery_util.VmmClient")
+  def test_update_virtual_ip_vmm_error_communicating_with_cvms(
+      self, m_VmmClient, m_NutanixRestApiClient):
+    m_VmmClient.is_nutanix_cvm.side_effect = [True, True]
+    m_VmmClient.is_powered_on.side_effect = [True, True]
+    m_vmm_client = mock.MagicMock()
+    m_vmm_client.get_vms.return_value = [
+      {"name": "FAKE-CVM-A", "ips": ["1.1.1.1"]},
+      {"name": "FAKE-CVM-B", "ips": ["1.1.1.2"]},
+    ]
+    m_VmmClient.return_value = m_vmm_client
+    m_nutanix_client = mock.MagicMock()
+    m_nutanix_client.clusters_get.side_effect = IOError("Kaboom!")
+    m_NutanixRestApiClient.return_value = m_nutanix_client
+    cluster_pb = proto_patch_encryption_support(CurieSettings.Cluster)()
+    mgmt_info = cluster_pb.cluster_management_server_info
+    mgmt_info.vmm_info.SetInParent()
+    software_info = cluster_pb.cluster_software_info
+    software_info.nutanix_info.SetInParent()
+    software_info.nutanix_info.prism_user = "fake_prism_user"
+    software_info.nutanix_info.prism_password = "fake_prism_password"
+
+    self.assertEqual("",
+                     cluster_pb.cluster_software_info.nutanix_info.prism_host)
+    with self.assertRaises(CurieTestException) as ar:
+      DiscoveryUtil.update_cluster_virtual_ip(cluster_pb)
+    self.assertIn(
+      "Cause: Failed to query Prism on any Nutanix CVM.\n\n"
+      "Impact: The cluster virtual IP address can not be discovered.\n\n"
+      "Corrective Action: Please verify that the Nutanix CVMs on the cluster "
+      "are powered on, and that the network connectivity to the CVMs is "
+      "correct.\n\nTraceback (most recent call last):\n",
+      str(ar.exception))
+    self.assertIn("IOError: Kaboom!", ar.exception.traceback)
+
+  @mock.patch("curie.discovery_util.NutanixRestApiClient")
   def test_update_virtual_ip_prism_already_set(self, m_NutanixRestApiClient):
     m_client = mock.MagicMock()
     m_client.clusters_get.return_value = {

@@ -90,13 +90,12 @@ class Run(BaseStep):
         cvm_ips = []
         for node in scenario.cluster.metadata().cluster_nodes:
           if getattr(node, "svm_addr"):
-            cvm_ips.append(IPv4Address(node.svm_addr))
+            cvm_ips.append(IPv4Address(unicode(node.svm_addr)))
         group_dict[group] = [str(cvm_ip) for cvm_ip in sorted(cvm_ips)]
       elif group == "nodes":
         node_ips = []
-        for node in scenario.cluster.metadata().cluster_nodes:
-          if getattr(node, "id"):
-            node_ips.append(IPv4Address(node.id))
+        for node in scenario.cluster.nodes():
+          node_ips.append(IPv4Address(unicode(node.node_ip())))
         group_dict[group] = [str(node_ip) for node_ip in sorted(node_ips)]
       else:
         vm_group = scenario.vm_groups.get(group)

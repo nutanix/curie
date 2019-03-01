@@ -45,22 +45,32 @@ class WaitOplogEmpty(BaseStep):
     def is_cluster_oplog_empty():
       to_check = all_cvms - verified_empty_cvms
       for cvm_ip in to_check:
+        url = "http://%s:2009/h/vars" % cvm_ip
         try:
           response = requests.get(
-            "http://%s:2009/h/vars" % cvm_ip,
+            url,
             params={
               "format": "text",
               "regex": "stargate/vdisk/total/oplog_bytes$"
             })
           response.raise_for_status()
-          # Expect response to look like:
-          # stargate/vdisk/total/oplog_bytes 27018567680\n
-          oplog_bytes = int(response.content.strip().split()[1])
-          if oplog_bytes == 0:
-            verified_empty_cvms.add(cvm_ip)
         except requests.exceptions.ConnectionError:
           log.warning("Couldn't connect to CVM at %s to get oplog bytes.",
                       cvm_ip)
+          continue
+        try:
+          # Expect response to look like:
+          # stargate/vdisk/total/oplog_bytes 27018567680\n
+          metric_name, value = response.content.strip().split()
+          assert metric_name == "stargate/vdisk/total/oplog_bytes"
+          oplog_bytes = int(value)
+        except BaseException:
+          log.exception("Received unexpected response while waiting for oplog "
+                        "to be empty at URL '%s': %r", url, response.content)
+          continue
+        else:
+          if oplog_bytes == 0:
+            verified_empty_cvms.add(cvm_ip)
       return True if len(all_cvms - verified_empty_cvms) == 0 else False
 
     rval = self.scenario.wait_for(func=is_cluster_oplog_empty,

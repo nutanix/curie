@@ -68,6 +68,67 @@ class TestStepsExperimental(unittest.TestCase):
       step()
     self.assertEqual(mock_requests_get.call_count, self.cluster_size * 3)
 
+
+  @mock.patch("curie.steps.experimental.requests.get")
+  @mock.patch("curie.util.time.sleep")
+  @mock.patch("curie.steps.experimental.log")
+  def test_WaitOplogEmpty_empty_response(self,
+                                         mock_log,
+                                         mock_time_sleep,
+                                         mock_requests_get):
+    self.cluster_size = 4
+    mock_time_sleep.return_value = 0
+    # Validate normal operation of WaitOplogEmpty by cycling through a
+    # decreasing oplog size for each cvm.
+    self.cluster.vms.return_value = self.__create_mock_vms(is_cvm=True)
+    side_effects = []
+    for oplog_size in ["0", "0", "", "0", "0"]:
+      response = mock.MagicMock(spec=requests.Response,
+                                content=("stargate/vdisk/total/oplog_bytes "
+                                         "%s\n" % oplog_size))
+      side_effects.append(response)
+    mock_requests_get.side_effect = side_effects
+    step = steps.experimental.WaitOplogEmpty(self.scenario)
+    with mock.patch("curie.util.time.time") as mock_time:
+      mock_time.side_effect = lambda: mock_time.call_count
+      step()
+    self.assertEqual(mock_requests_get.call_count, 5)
+    mock_log.exception.assert_called_once_with(
+      "Received unexpected response while waiting for oplog to be empty at "
+      "URL '%s': %r", "http://1.1.1.1:2009/h/vars",
+      "stargate/vdisk/total/oplog_bytes \n")
+
+
+  @mock.patch("curie.steps.experimental.requests.get")
+  @mock.patch("curie.util.time.sleep")
+  @mock.patch("curie.steps.experimental.log")
+  def test_WaitOplogEmpty_incorrect_metric_name(self,
+                                                mock_log,
+                                                mock_time_sleep,
+                                                mock_requests_get):
+    self.cluster_size = 4
+    mock_time_sleep.return_value = 0
+    # Validate normal operation of WaitOplogEmpty by cycling through a
+    # decreasing oplog size for each cvm.
+    self.cluster.vms.return_value = self.__create_mock_vms(is_cvm=True)
+    side_effects = [mock.MagicMock(spec=requests.Response,
+                                   content="nonsense_response 0\n")]
+    for oplog_size in ["0", "0", "0", "0"]:
+      response = mock.MagicMock(spec=requests.Response,
+                                content=("stargate/vdisk/total/oplog_bytes "
+                                         "%s\n" % oplog_size))
+      side_effects.append(response)
+    mock_requests_get.side_effect = side_effects
+    step = steps.experimental.WaitOplogEmpty(self.scenario)
+    with mock.patch("curie.util.time.time") as mock_time:
+      mock_time.side_effect = lambda: mock_time.call_count
+      step()
+    self.assertEqual(mock_requests_get.call_count, 5)
+    mock_log.exception.assert_called_once_with(
+      "Received unexpected response while waiting for oplog to be empty at "
+      "URL '%s': %r", "http://0.0.0.0:2009/h/vars", "nonsense_response 0\n")
+
+
   def test_WaitOplogEmpty_init_cluster_None(self):
     self.scenario.cluster = None
     step = steps.experimental.WaitOplogEmpty(self.scenario)

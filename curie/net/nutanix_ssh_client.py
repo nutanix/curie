@@ -84,17 +84,11 @@ class NutanixSSHClient(client.SSHClient):
       command each. However if that is the desired behavior, the paramiko
       SSHClient may be used instead.
 
-      This also differs from paramiko in that the parent implementation
-      returns None, while this implementation returns 'self' which
-      can be used as a context manager which will automatically close
-      the connection.
-
     Returns:
-      This object which can be used as a context manager.
+      None
     """
     super(NutanixSSHClient, self).connect(
       self._host, *self._connection_args, **self._connection_kwargs)
-    return self
 
   def sync_command(self, command, default_env=True, *args, **kwargs):
     """Run a command on 'default_connect' and block until it completes.
@@ -114,7 +108,8 @@ class NutanixSSHClient(client.SSHClient):
     Raises:
       SSHCommandError if the return code from the command is non-zero.
     """
-    with self.connect() as ssh_client:
+    with self as ssh_client:
+      ssh_client.connect()
       _, sout, serr = ssh_client.exec_command(
         command, default_env=default_env, *args, **kwargs)
       command_rv = sout.channel.recv_exit_status()
@@ -160,7 +155,8 @@ class NutanixSSHClient(client.SSHClient):
     _LOGGER.debug("copying %s:%s -> %s", self._host, remote_path, local_path)
     _remote_path = str(remote_path)
     _local_path = str(local_path)
-    with self.connect() as ssh_client:
+    with self as ssh_client:
+      ssh_client.connect()
       with scp.SCPClient(ssh_client.get_transport()) as scp_client:
         scp_client.get(_remote_path, _local_path, recursive=recursive)
 
@@ -174,6 +170,7 @@ class NutanixSSHClient(client.SSHClient):
     _LOGGER.debug("copying %s -> %s:%s", self._host, local_path, remote_path)
     _local_path = str(local_path)
     _remote_path = str(remote_path)
-    with self.connect() as ssh_client:
+    with self as ssh_client:
+      ssh_client.connect()
       with scp.SCPClient(ssh_client.get_transport()) as scp_client:
         scp_client.put(_local_path, _remote_path, recursive=recursive)

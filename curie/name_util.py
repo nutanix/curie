@@ -137,8 +137,8 @@ class NameUtil(object):
 
   @staticmethod
   def is_hyperv_cvm_vm(vm_name):
-    test_entity_name_pat = re.compile("^NTNX-[0-9]*-[A-Z]-CVM")
-    if(test_entity_name_pat.search(vm_name)):
+    test_entity_name_pat = re.compile(r"^NTNX-[0-9A-Z]+-[A-Z]+-CVM")
+    if test_entity_name_pat.search(vm_name):
       return True
     return False
 

@@ -4,20 +4,22 @@
 #
 
 import unittest
+import uuid
 from difflib import unified_diff
+
 from mock import MagicMock, Mock, call, patch, sentinel as sen
 
+from curie import anteater
+from curie import steps
 from curie.acropolis_cluster import AcropolisCluster
 from curie.cluster import Cluster
 from curie.exception import CurieTestException
-from curie import anteater
 from curie.node import Node
 from curie.scenario import Scenario, Phase
-from curie import steps
-from curie.vm_group import VMGroup
 from curie.testing import environment
-from curie.vsphere_cluster import VsphereCluster
 from curie.vm import Vm
+from curie.vm_group import VMGroup
+from curie.vsphere_cluster import VsphereCluster
 
 
 class TestStepsPlaybook(unittest.TestCase):
@@ -49,11 +51,11 @@ class TestStepsPlaybook(unittest.TestCase):
     self.scenario.cluster.vms.return_value.extend(cvms)
 
     # Create nodes that are created from metadata/YAML
-    ipaddr = TestStepsPlaybook.__ipaddr(1)
-    cluster_nodes = [MagicMock(id=unicode(next(ipaddr)))
-                     for i in range(self.cluster_size)]
+    cluster_nodes = [MagicMock(id=uuid.uuid4())
+                     for _ in range(self.cluster_size)]
+    ipaddr = TestStepsPlaybook.__ipaddr(self.cluster_size + 1)
     for cluster_node in cluster_nodes:
-      cluster_node.svm_addr = unicode(next(ipaddr))
+      cluster_node.svm_addr = next(ipaddr)
     self.scenario.cluster.metadata.return_value.cluster_nodes = cluster_nodes
 
   def __create_mock_uvmgroup(self, name, size=None, ip_index=9):
