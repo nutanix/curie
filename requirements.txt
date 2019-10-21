@@ -14,13 +14,11 @@ click==7.0                # via flask
 cryptography==2.3.1       # via ansible, paramiko, pyopenssl
 enum34==1.1.6
 flask==1.0.2
-funcsigs==1.0.2           # via mock
 idna==2.7                 # via cryptography, requests
 ipaddress==1.0.22
 itsdangerous==1.1.0       # via flask
 jinja2==2.10              # via ansible, flask
 lxml==4.2.5
-m2crypto==0.30.1          # via pywbem
 markupsafe==1.0           # via jinja2
 mock==2.0.0               # via pywbem
 numpy==1.13.1
@@ -44,7 +42,6 @@ pyyaml==3.13
 requests==2.20.0
 scp==0.12.1
 six==1.11.0               # via bcrypt, cryptography, mock, protobuf, pynacl, pyopenssl, python-dateutil, pyvmomi, pywbem
-typing==3.6.6             # via m2crypto
 urllib3==1.24             # via requests
-werkzeug==0.14.1          # via flask
+werkzeug==0.15.3          # via flask
 xmltodict==0.11.0

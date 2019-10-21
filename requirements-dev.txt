@@ -7,19 +7,15 @@
 ansible==2.4.3
 asn1crypto==0.24.0
 astroid==1.6.5            # via pylint
-backports.functools-lru-cache==1.5  # via astroid, pylint
 bcrypt==3.1.4
 certifi==2018.10.15
 cffi==1.11.5
 chardet==3.0.4
 click==7.0
-configparser==3.5.0       # via pylint
 coverage==4.5.1
 cryptography==2.3.1
 enum34==1.1.6
 flask==1.0.2
-funcsigs==1.0.2
-futures==3.2.0            # via isort
 idna==2.7
 ipaddress==1.0.22
 isort==4.3.4              # via pylint
@@ -27,7 +23,6 @@ itsdangerous==1.1.0
 jinja2==2.10
 lazy-object-proxy==1.3.1  # via astroid
 lxml==4.2.5
-m2crypto==0.30.1
 markupsafe==1.0
 mccabe==0.6.1             # via pylint
 mock==2.0.0
@@ -54,10 +49,8 @@ pywbem==0.12.6
 pyyaml==3.13
 requests==2.20.0
 scp==0.12.1
-singledispatch==3.4.0.3   # via astroid, pylint
 six==1.11.0
-typing==3.6.6
 urllib3==1.24
-werkzeug==0.14.1
+werkzeug==0.15.3
 wrapt==1.10.11            # via astroid
 xmltodict==0.11.0
