@@ -1,6 +1,6 @@
 Flask>=0.10.1
 PyYAML>=3.11
-ansible==2.4.3
+ansible==2.10.0
 enum34>=1.1.6
 ipaddress>=1.0.18
 lxml>=3.4.4
